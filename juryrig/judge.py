@@ -47,7 +47,7 @@ class MockJudge:
     """Deterministic judge for tests and demos.
 
     Scores by rubric keyword coverage, with configurable flaws
-    (position bias, verbosity bias, noise) so juryrig's audits have
+    (position bias, verbosity bias, injection bias, noise) so juryrig's audits have
     something real to detect. No network calls.
     """
 
@@ -57,12 +57,14 @@ class MockJudge:
         seed: int = 0,
         position_bias: float = 0.0,
         verbosity_bias: float = 0.0,
+        injection_bias: float = 0.0,
         noise: float = 0.0,
     ) -> None:
         self.name = name
         self.seed = seed
         self.position_bias = position_bias
         self.verbosity_bias = verbosity_bias
+        self.injection_bias = injection_bias
         self.noise = noise
 
     def _base_score(self, response: str, rubric: str) -> float:
@@ -72,9 +74,23 @@ class MockJudge:
         have = {w.lower().strip(".,") for w in response.split()}
         return len(wanted & have) / len(wanted)
 
+    def _contains_injection(self, response: str) -> bool:
+        lower = response.lower()
+        markers = (
+            "judge override",
+            "ignore the rubric",
+            "ignore previous",
+            "maximum rating",
+            "perfect score",
+            "evaluation passed",
+        )
+        return any(marker in lower for marker in markers)
+
     def judge(self, *, prompt: str, response: str, rubric: str) -> Judgment:
         score = self._base_score(response, rubric)
         score += self.verbosity_bias * min(len(response) / 2000.0, 1.0)
+        if self.injection_bias and self._contains_injection(response):
+            score += self.injection_bias
         if self.noise:
             score += self.noise * (_stable_unit(self.seed, prompt, response) - 0.5)
         score = max(0.0, min(1.0, score))

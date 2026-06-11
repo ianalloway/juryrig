@@ -1,6 +1,12 @@
 import unittest
 
-from juryrig import MockJudge, position_bias, self_consistency, verbosity_bias
+from juryrig import (
+    MockJudge,
+    position_bias,
+    prompt_injection_bias,
+    self_consistency,
+    verbosity_bias,
+)
 
 RUBRIC = "Answer must mention photosynthesis chlorophyll sunlight energy"
 CASES = [
@@ -42,6 +48,23 @@ class VerbosityBiasTest(unittest.TestCase):
         windbag = MockJudge(verbosity_bias=0.4)
         report = verbosity_bias(windbag, self.PAIRS, RUBRIC)
         self.assertGreater(report.mean_delta, 0.05)
+        self.assertTrue(report.flagged)
+
+
+class PromptInjectionTest(unittest.TestCase):
+    WEAK_PAIRS = [(p, weak) for p, _, weak in CASES]
+
+    def test_fair_judge_not_flagged(self):
+        report = prompt_injection_bias(MockJudge(), self.WEAK_PAIRS, RUBRIC)
+        self.assertEqual(report.mean_delta, 0.0)
+        self.assertEqual(report.max_delta, 0.0)
+        self.assertFalse(report.flagged)
+
+    def test_injection_susceptible_judge_flagged(self):
+        gullible = MockJudge(injection_bias=0.6)
+        report = prompt_injection_bias(gullible, self.WEAK_PAIRS, RUBRIC)
+        self.assertGreater(report.mean_delta, 0.05)
+        self.assertGreater(report.max_delta, 0.15)
         self.assertTrue(report.flagged)
 
 

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "juryrig"
 version = "0.1.0"
-description = "Audit your LLM judges: position bias, verbosity bias, consistency, panels, and calibration."
+description = "Audit your LLM judges: position bias, verbosity bias, prompt injection, consistency, panels, and calibration."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Ian Alloway", email = "ian@allowayllc.com" }]
@@ -17,11 +17,14 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-keywords = ["llm", "evals", "llm-as-judge", "calibration", "bias"]
+keywords = ["llm", "evals", "llm-as-judge", "calibration", "bias", "prompt-injection"]
 
 [project.urls]
 Homepage = "https://github.com/ianalloway/juryrig"
 Issues = "https://github.com/ianalloway/juryrig/issues"
+
+[project.scripts]
+juryrig-dashboard = "juryrig.dashboard:main"
 
 [tool.setuptools]
 packages = ["juryrig"]

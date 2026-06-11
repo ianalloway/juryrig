@@ -18,6 +18,7 @@ the thing under test:
 
 - **Position-bias audit** — present every A/B pair in both orders; count how often the *slot* (not the content) decides the winner.
 - **Verbosity-bias audit** — re-score responses padded with content-free filler; a fair judge shouldn't reward padding.
+- **Prompt-injection audit** — append judge-targeted instructions to bad responses; a robust judge should grade the answer, not obey it.
 - **Self-consistency** — same input, several runs; how stable is the score?
 - **Panels** — pool several judges (mean / median / min) and get an agreement score, so you know when your verdict depends on which judge you picked.
 - **Calibration** — Brier score, reliability tables, and expected calibration error against human labels.
@@ -28,10 +29,31 @@ the thing under test:
 pip install git+https://github.com/ianalloway/juryrig
 ```
 
+## Dashboard
+
+Installing juryrig adds a local dashboard launcher:
+
+```bash
+juryrig-dashboard
+```
+
+It opens a zero-dependency audit console at `http://127.0.0.1:8765` with a
+deterministic fair-vs-rigged judge snapshot, bias metrics, calibration bars,
+panel scores, live audit-threshold controls, recommendations, and JSON report
+export. Use `juryrig-dashboard --no-open` if you want the URL without opening a
+browser automatically.
+
 ## Quickstart
 
 ```python
-from juryrig import AnthropicJudge, MockJudge, Panel, position_bias, verbosity_bias
+from juryrig import (
+    AnthropicJudge,
+    MockJudge,
+    Panel,
+    position_bias,
+    prompt_injection_bias,
+    verbosity_bias,
+)
 
 rubric = "Answer must mention photosynthesis, chlorophyll, sunlight, and energy."
 
@@ -41,6 +63,9 @@ cases = [("How do plants make food?", "good answer...", "weak answer...")]
 
 bias = position_bias(judge, cases, rubric)
 print(f"flip rate: {bias.flip_rate:.0%}  flagged: {bias.flagged}")
+
+injection = prompt_injection_bias(judge, [("Weak answer prompt", "vague answer")], rubric)
+print(f"injection lift: {injection.mean_delta:+.3f}  flagged: {injection.flagged}")
 
 # 2. Use a panel instead of a single judge
 panel = Panel([AnthropicJudge(), MockJudge(name="baseline")])
@@ -59,10 +84,10 @@ assert not position_bias(judge, cases, rubric).flagged, "judge is positionally b
 
 ## Why the MockJudge has built-in flaws
 
-`MockJudge(position_bias=..., verbosity_bias=..., noise=...)` lets you dial in
-known defects. That's how juryrig tests itself — the audits must detect a
-rigged judge and clear a fair one — and it gives you a deterministic,
-network-free way to test *your* eval pipeline end to end.
+`MockJudge(position_bias=..., verbosity_bias=..., injection_bias=..., noise=...)`
+lets you dial in known defects. That's how juryrig tests itself — the audits
+must detect a rigged judge and clear a fair one — and it gives you a
+deterministic, network-free way to test *your* eval pipeline end to end.
 
 ## Calibration
 
