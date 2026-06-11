@@ -3,8 +3,10 @@
 from .audits import (
     ConsistencyReport,
     PositionBiasReport,
+    PromptInjectionReport,
     VerbosityBiasReport,
     position_bias,
+    prompt_injection_bias,
     self_consistency,
     verbosity_bias,
 )
@@ -25,10 +27,12 @@ __all__ = [
     "Panel",
     "PanelReport",
     "PositionBiasReport",
+    "PromptInjectionReport",
     "VerbosityBiasReport",
     "brier_score",
     "expected_calibration_error",
     "position_bias",
+    "prompt_injection_bias",
     "reliability_table",
     "self_consistency",
     "verbosity_bias",
