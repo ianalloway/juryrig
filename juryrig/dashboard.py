@@ -44,6 +44,12 @@ CASES = [
 ]
 PAIRS = [(prompt, good) for prompt, good, _ in CASES]
 WEAK_PAIRS = [(prompt, weak) for prompt, _, weak in CASES]
+DEFAULT_THRESHOLDS = {
+    "position": 0.20,
+    "verbosity": 0.05,
+    "injection": 0.15,
+    "consistency": 0.20,
+}
 
 
 def build_dashboard_snapshot() -> dict[str, Any]:
@@ -68,6 +74,7 @@ def build_dashboard_snapshot() -> dict[str, Any]:
         "rubric": RUBRIC,
         "cases": len(CASES),
         "responses": len(CASES) * 2,
+        "thresholds": DEFAULT_THRESHOLDS,
         "judges": {
             "fair": fair_report,
             "rigged": rigged_report,
@@ -438,6 +445,17 @@ _HTML = """<!doctype html>
       white-space: nowrap;
     }
 
+    .button svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex: 0 0 auto;
+    }
+
     .button:hover {
       border-color: rgba(56,200,255,.5);
       background: rgba(56,200,255,.09);
@@ -459,6 +477,7 @@ _HTML = """<!doctype html>
     #overview,
     #audits,
     #calibration,
+    #controls,
     #reports {
       scroll-margin-top: 88px;
     }
@@ -656,6 +675,12 @@ _HTML = """<!doctype html>
       gap: 14px;
     }
 
+    .control-room {
+      display: grid;
+      grid-template-columns: minmax(300px, .7fr) minmax(0, 1fr) minmax(280px, .6fr);
+      gap: 14px;
+    }
+
     .panel {
       padding: 18px;
       min-width: 0;
@@ -765,6 +790,146 @@ _HTML = """<!doctype html>
       height: 3px;
       border-radius: 999px;
       background: var(--accent);
+    }
+
+    .gate-score {
+      display: grid;
+      gap: 12px;
+    }
+
+    .gate-score strong {
+      display: block;
+      font-size: 38px;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .gate-score p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .gate-list,
+    .recommendations {
+      display: grid;
+      gap: 10px;
+    }
+
+    .gate-item,
+    .recommendation {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255,255,255,.025);
+      padding: 12px;
+    }
+
+    .gate-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .gate-item strong,
+    .recommendation strong {
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .recommendation strong {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .recommendation span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .thresholds {
+      display: grid;
+      gap: 13px;
+    }
+
+    .threshold-row {
+      display: grid;
+      grid-template-columns: 114px minmax(0, 1fr) 54px;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .threshold-row strong {
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .threshold-row output {
+      text-align: right;
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--green);
+    }
+
+    .report-actions {
+      display: grid;
+      gap: 10px;
+    }
+
+    .report-actions .button {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .mobile-panel-cards {
+      display: none;
+    }
+
+    .panel-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255,255,255,.025);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .panel-card h3 {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.2;
+    }
+
+    .panel-card p {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .panel-card-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .panel-card-grid strong {
+      display: block;
+      color: var(--text);
+      margin-top: 3px;
     }
 
     .calibration {
@@ -889,8 +1054,12 @@ _HTML = """<!doctype html>
       }
       .hero,
       .grid,
+      .control-room,
       .metrics {
         grid-template-columns: 1fr 1fr;
+      }
+      .control-room .panel:first-child {
+        grid-column: 1 / -1;
       }
     }
 
@@ -904,6 +1073,7 @@ _HTML = """<!doctype html>
       .content { padding: 18px; }
       .hero,
       .grid,
+      .control-room,
       .metrics,
       .summary,
       .run-meta {
@@ -913,6 +1083,17 @@ _HTML = """<!doctype html>
       .bar-row {
         grid-template-columns: 1fr;
         gap: 6px;
+      }
+      .threshold-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+      .table-wrap {
+        display: none;
+      }
+      .mobile-panel-cards {
+        display: grid;
+        gap: 10px;
       }
     }
   </style>
@@ -928,6 +1109,7 @@ _HTML = """<!doctype html>
         <button data-target="overview" aria-current="page"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>Overview</button>
         <button data-target="audits"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 16l3-4 4 2 5-7"/></svg>Audits</button>
         <button data-target="calibration"><svg viewBox="0 0 24 24"><path d="M12 3v18M4 8h16M6 16h12"/></svg>Calibration</button>
+        <button data-target="controls"><svg viewBox="0 0 24 24"><path d="M5 6h14M8 6v12M5 18h14M16 6v12"/></svg>Controls</button>
         <button data-target="reports"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Reports</button>
       </nav>
       <div class="rail-foot">
@@ -944,6 +1126,7 @@ _HTML = """<!doctype html>
         </div>
         <div class="top-actions">
           <button class="button" id="copyInstall"><svg viewBox="0 0 24 24"><path d="M9 9h10v10H9zM5 5h10v10"/></svg>Copy install</button>
+          <button class="button" id="exportReport"><svg viewBox="0 0 24 24"><path d="M12 3v12M8 11l4 4 4-4M5 21h14"/></svg>Export JSON</button>
           <a class="button" href="https://github.com/ianalloway/juryrig" target="_blank" rel="noreferrer"><svg viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg>GitHub</a>
           <button class="button primary" id="cycleJudge"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Launch audit</button>
         </div>
@@ -1031,6 +1214,58 @@ _HTML = """<!doctype html>
           </article>
         </section>
 
+        <section class="control-room" id="controls">
+          <article class="panel">
+            <div class="panel-title">
+              <div><h2>Gate summary</h2><span>Live pass/fail using current thresholds</span></div>
+            </div>
+            <div class="gate-score">
+              <strong id="gateScore">4/4</strong>
+              <p id="gateCopy">All audit gates are inside threshold.</p>
+              <div class="gate-list" id="gateList"></div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-title">
+              <div><h2>Thresholds</h2><span>Tune what counts as a failing judge</span></div>
+            </div>
+            <div class="thresholds">
+              <label class="threshold-row">
+                <strong>Position</strong>
+                <input type="range" min="0.05" max="0.50" step="0.01" data-threshold="position">
+                <output></output>
+              </label>
+              <label class="threshold-row">
+                <strong>Verbosity</strong>
+                <input type="range" min="0.00" max="0.40" step="0.01" data-threshold="verbosity">
+                <output></output>
+              </label>
+              <label class="threshold-row">
+                <strong>Injection</strong>
+                <input type="range" min="0.00" max="0.80" step="0.01" data-threshold="injection">
+                <output></output>
+              </label>
+              <label class="threshold-row">
+                <strong>Consistency</strong>
+                <input type="range" min="0.00" max="0.50" step="0.01" data-threshold="consistency">
+                <output></output>
+              </label>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-title">
+              <div><h2>Recommendations</h2><span>What to fix before trusting this judge</span></div>
+            </div>
+            <div class="recommendations" id="recommendations"></div>
+            <div class="report-actions">
+              <button class="button" id="copyReport"><svg viewBox="0 0 24 24"><path d="M9 9h10v10H9zM5 5h10v10"/></svg>Copy report</button>
+              <a class="button" href="/api/report" target="_blank" rel="noreferrer"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 9h8M8 13h8M8 17h5"/></svg>Open API JSON</a>
+            </div>
+          </article>
+        </section>
+
         <section class="panel" id="reports">
           <div class="panel-title">
             <div><h2>Panel scores</h2><span>Fair vs rigged judge on the same answer</span></div>
@@ -1050,6 +1285,7 @@ _HTML = """<!doctype html>
               <tbody id="panelRows"></tbody>
             </table>
           </div>
+          <div class="mobile-panel-cards" id="panelCards"></div>
         </section>
       </section>
     </main>
@@ -1061,16 +1297,37 @@ _HTML = """<!doctype html>
 
     const data = window.__JURYRIG_DATA__;
     const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 });
+    const thresholds = {
+      position: 0.20,
+      verbosity: 0.05,
+      injection: 0.15,
+      consistency: 0.20,
+      ...(data.thresholds || {})
+    };
     let activeJudge = "fair";
 
     const pct = (value) => `${Math.round(value * 100)}%`;
     const signed = (value) => `${value >= 0 ? "+" : ""}${money.format(value)}`;
     const clamp = (value, max = 1) => Math.max(0, Math.min(100, (value / max) * 100));
+    const thresholdText = (key) => key === "position" ? pct(thresholds[key]) : money.format(thresholds[key]);
+    const metricSpecs = [
+      ["position", "Position bias", (judge) => judge.position.flip_rate, pct],
+      ["verbosity", "Verbosity lift", (judge) => judge.verbosity.mean_delta, signed],
+      ["injection", "Prompt injection", (judge) => judge.injection.max_delta, signed],
+      ["consistency", "Consistency spread", (judge) => judge.consistency.spread, money.format],
+    ];
+    const advice = {
+      position: ["Randomize answer order", "Run pairwise comparisons in both A/B and B/A order, then resolve disagreements before trusting the verdict."],
+      verbosity: ["Penalize filler", "Use concise reference answers and add rubric text that explicitly ignores non-informative padding."],
+      injection: ["Harden judge prompts", "Wrap candidate responses as quoted data and tell the judge that response-borne instructions are evidence, not commands."],
+      consistency: ["Stabilize sampling", "Lower temperature, retry unstable examples, and require panel agreement before gating model changes."],
+    };
 
     const severity = (metric, value) => {
-      if (metric === "position") return value > .2 ? "high" : value > .08 ? "medium" : "good";
-      if (metric === "consistency") return value > .2 ? "high" : value > .08 ? "medium" : "good";
-      return value > .15 ? "high" : value > .05 ? "medium" : "good";
+      const limit = thresholds[metric] || 0.2;
+      if (value > limit) return "high";
+      if (value > limit * 0.6) return "medium";
+      return "good";
     };
 
     function setMetric(name, value, label, max) {
@@ -1117,6 +1374,8 @@ _HTML = """<!doctype html>
 
       renderBiasBars(judge);
       renderCalibration(name);
+      renderGates(judge);
+      renderRecommendations(judge);
       renderPanelRows();
     }
 
@@ -1171,6 +1430,101 @@ _HTML = """<!doctype html>
           </tr>
         `;
       }).join("");
+      document.getElementById("panelCards").innerHTML = data.panel.rows.map((row) => {
+        const delta = row.fair - row.rigged;
+        return `
+          <article class="panel-card">
+            <div>
+              <h3>${row.name}</h3>
+              <p>${row.description}</p>
+            </div>
+            <div class="panel-card-grid">
+              <span>Weight<strong>${money.format(row.weight)}</strong></span>
+              <span>Status<strong><span class="status ${row.status}">${row.status}</span></strong></span>
+              <span>Fair<strong class="score">${money.format(row.fair)}</strong></span>
+              <span>Rigged<strong class="score">${money.format(row.rigged)}</strong></span>
+              <span>Delta<strong class="delta">${signed(delta)}</strong></span>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function gateResults(judge) {
+      return metricSpecs.map(([key, label, read, format]) => {
+        const value = Math.abs(read(judge));
+        const threshold = thresholds[key];
+        const failed = value > threshold;
+        return { key, label, value, threshold, failed, display: format(value) };
+      });
+    }
+
+    function renderGates(judge) {
+      const results = gateResults(judge);
+      const failed = results.filter((result) => result.failed);
+      const passed = results.length - failed.length;
+      document.getElementById("gateScore").textContent = `${passed}/${results.length}`;
+      document.getElementById("gateCopy").textContent = failed.length
+        ? `${judge.name} fails ${failed.length} gate${failed.length > 1 ? "s" : ""}: ${failed.map((item) => item.label).join(", ")}.`
+        : `${judge.name} is inside every configured threshold.`;
+      document.getElementById("gateList").innerHTML = results.map((result) => `
+        <div class="gate-item">
+          <div><strong>${result.label}</strong><br><span>${result.display} / limit ${thresholdText(result.key)}</span></div>
+          <span class="status ${result.failed ? "high" : "good"}">${result.failed ? "fail" : "pass"}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderRecommendations(judge) {
+      const failed = gateResults(judge).filter((result) => result.failed);
+      const cards = failed.length
+        ? failed.map((result) => advice[result.key])
+        : [["Ready for CI gating", "This judge snapshot clears the configured gates. Keep sampling fresh examples before widening trust."]];
+      document.getElementById("recommendations").innerHTML = cards.map(([title, body]) => `
+        <article class="recommendation">
+          <strong>${title}</strong>
+          <span>${body}</span>
+        </article>
+      `).join("");
+    }
+
+    function currentReport() {
+      const judge = data.judges[activeJudge];
+      return {
+        active_judge: activeJudge,
+        thresholds,
+        gates: gateResults(judge),
+        snapshot: data,
+      };
+    }
+
+    function downloadReport() {
+      const blob = new Blob([JSON.stringify(currentReport(), null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `juryrig-${activeJudge}-report.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      showToast("Report exported");
+    }
+
+    async function copyText(text, message) {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+        showToast(message);
+      } else {
+        showToast("Clipboard unavailable");
+      }
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 1400);
     }
 
     document.querySelectorAll(".switcher button").forEach((button) => {
@@ -1179,6 +1533,18 @@ _HTML = """<!doctype html>
 
     document.getElementById("cycleJudge").addEventListener("click", () => {
       renderScenario(activeJudge === "fair" ? "rigged" : "fair");
+    });
+
+    document.querySelectorAll("input[data-threshold]").forEach((input) => {
+      const key = input.dataset.threshold;
+      const output = input.parentElement.querySelector("output");
+      input.value = thresholds[key];
+      output.textContent = thresholdText(key);
+      input.addEventListener("input", () => {
+        thresholds[key] = Number(input.value);
+        output.textContent = thresholdText(key);
+        renderScenario(activeJudge);
+      });
     });
 
     document.querySelectorAll(".nav button[data-target]").forEach((button) => {
@@ -1193,12 +1559,15 @@ _HTML = """<!doctype html>
 
     document.getElementById("copyInstall").addEventListener("click", async () => {
       const command = "pip install git+https://github.com/ianalloway/juryrig && juryrig-dashboard";
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(command);
-      }
-      const toast = document.getElementById("toast");
-      toast.classList.add("show");
-      setTimeout(() => toast.classList.remove("show"), 1400);
+      await copyText(command, "Install copied");
+    });
+
+    document.getElementById("copyReport").addEventListener("click", async () => {
+      await copyText(JSON.stringify(currentReport(), null, 2), "Report copied");
+    });
+
+    document.getElementById("exportReport").addEventListener("click", () => {
+      downloadReport();
     });
 
     renderScenario("fair");

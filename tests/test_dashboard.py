@@ -8,6 +8,8 @@ class DashboardSnapshotTest(unittest.TestCase):
         snapshot = build_dashboard_snapshot()
 
         self.assertEqual(snapshot["cases"], 3)
+        self.assertEqual(snapshot["thresholds"]["position"], 0.20)
+        self.assertEqual(snapshot["thresholds"]["injection"], 0.15)
         self.assertEqual(snapshot["judges"]["fair"]["flagged"], [])
         self.assertIn("position", snapshot["judges"]["rigged"]["flagged"])
         self.assertIn("verbosity", snapshot["judges"]["rigged"]["flagged"])
@@ -31,6 +33,10 @@ class DashboardHtmlTest(unittest.TestCase):
         self.assertIn("Judge audit console", html)
         self.assertIn("Prompt injection", html)
         self.assertIn("Copy install", html)
+        self.assertIn("Export JSON", html)
+        self.assertIn("Gate summary", html)
+        self.assertIn("Thresholds", html)
+        self.assertIn("Recommendations", html)
         self.assertIn("juryrig-dashboard", html)
 
 

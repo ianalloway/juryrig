@@ -39,8 +39,9 @@ juryrig-dashboard
 
 It opens a zero-dependency audit console at `http://127.0.0.1:8765` with a
 deterministic fair-vs-rigged judge snapshot, bias metrics, calibration bars,
-and panel scores. Use `juryrig-dashboard --no-open` if you want the URL without
-opening a browser automatically.
+panel scores, live audit-threshold controls, recommendations, and JSON report
+export. Use `juryrig-dashboard --no-open` if you want the URL without opening a
+browser automatically.
 
 ## Quickstart
 
