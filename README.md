@@ -41,13 +41,23 @@ It opens a zero-dependency audit console at `http://127.0.0.1:8765` with a
 deterministic fair-vs-rigged judge snapshot, bias metrics, calibration bars,
 panel scores, live audit-threshold controls, recommendations, and JSON report
 export. Use `juryrig-dashboard --no-open` if you want the URL without opening a
-browser automatically.
+browser automatically. If port `8765` is already busy, the dashboard falls back
+to an open local port and prints the URL.
+
+For automation or CI logs, print the same report payload without starting the
+server:
+
+```bash
+juryrig-dashboard --json --judge rigged
+```
+
+The local server also exposes `/api/report`, including threshold overrides such
+as `/api/report?judge=rigged&injection=0.8`.
 
 ## Quickstart
 
 ```python
 from juryrig import (
-    AnthropicJudge,
     MockJudge,
     Panel,
     position_bias,
@@ -58,7 +68,7 @@ from juryrig import (
 rubric = "Answer must mention photosynthesis, chlorophyll, sunlight, and energy."
 
 # 1. Audit a judge before using it
-judge = AnthropicJudge()          # or OpenAIJudge(), or your own class
+judge = MockJudge(name="demo")    # swap in your own judge for real audits
 cases = [("How do plants make food?", "good answer...", "weak answer...")]
 
 bias = position_bias(judge, cases, rubric)
@@ -68,12 +78,17 @@ injection = prompt_injection_bias(judge, [("Weak answer prompt", "vague answer")
 print(f"injection lift: {injection.mean_delta:+.3f}  flagged: {injection.flagged}")
 
 # 2. Use a panel instead of a single judge
-panel = Panel([AnthropicJudge(), MockJudge(name="baseline")])
+panel = Panel([MockJudge(name="primary"), MockJudge(name="baseline")])
 report = panel.evaluate(prompt="How do plants make food?",
                         response="Photosynthesis converts sunlight...",
                         rubric=rubric)
 print(report.pooled, report.agreement)
 ```
+
+`position_bias()` is a pairwise audit and needs a judge with `compare()`;
+`MockJudge` implements both `compare()` and `judge()` so the quickstart runs
+without API credentials. Provider-backed judges such as `AnthropicJudge` and
+`OpenAIJudge` can be used with the single-response audits.
 
 Every audit returns a small frozen dataclass with a `flagged` property, so
 gating a CI pipeline is one `if`:
