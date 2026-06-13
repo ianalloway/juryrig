@@ -43,6 +43,16 @@ panel scores, live audit-threshold controls, recommendations, and JSON report
 export. Use `juryrig-dashboard --no-open` if you want the URL without opening a
 browser automatically.
 
+For automation or CI logs, print the same report payload without starting the
+server:
+
+```bash
+juryrig-dashboard --json --judge rigged
+```
+
+The local server also exposes `/api/report`, including threshold overrides such
+as `/api/report?judge=rigged&injection=0.8`.
+
 ## Quickstart
 
 ```python

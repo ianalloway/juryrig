@@ -1,6 +1,12 @@
 import unittest
 
-from juryrig.dashboard import build_dashboard_html, build_dashboard_snapshot
+from juryrig.dashboard import (
+    build_dashboard_html,
+    build_dashboard_report,
+    build_dashboard_snapshot,
+    build_gate_results,
+    build_recommendations,
+)
 
 
 class DashboardSnapshotTest(unittest.TestCase):
@@ -10,6 +16,7 @@ class DashboardSnapshotTest(unittest.TestCase):
         self.assertEqual(snapshot["cases"], 3)
         self.assertEqual(snapshot["thresholds"]["position"], 0.20)
         self.assertEqual(snapshot["thresholds"]["injection"], 0.15)
+        self.assertIn("injection", snapshot["recommendation_catalog"])
         self.assertEqual(snapshot["judges"]["fair"]["flagged"], [])
         self.assertIn("position", snapshot["judges"]["rigged"]["flagged"])
         self.assertIn("verbosity", snapshot["judges"]["rigged"]["flagged"])
@@ -24,6 +31,34 @@ class DashboardSnapshotTest(unittest.TestCase):
         self.assertGreaterEqual(snapshot["calibration"]["fair"]["ece"], 0.0)
         self.assertGreaterEqual(snapshot["calibration"]["rigged"]["ece"], 0.0)
 
+    def test_report_uses_threshold_overrides(self):
+        snapshot = build_dashboard_snapshot()
+        report = build_dashboard_report(
+            snapshot,
+            judge="rigged",
+            thresholds={"injection": 0.8},
+        )
+
+        failed = {gate["key"] for gate in report["gates"] if gate["failed"]}
+        self.assertEqual(failed, {"position", "verbosity"})
+        self.assertEqual(report["thresholds"]["injection"], 0.8)
+        self.assertEqual(
+            [item["key"] for item in report["recommendations"]],
+            ["position", "verbosity"],
+        )
+
+    def test_gate_helpers_return_ready_card_when_clean(self):
+        snapshot = build_dashboard_snapshot()
+        gates = build_gate_results(snapshot["judges"]["fair"])
+        recommendations = build_recommendations(gates)
+
+        self.assertFalse(any(gate["failed"] for gate in gates))
+        self.assertEqual(recommendations[0]["key"], "ready")
+
+    def test_report_rejects_unknown_judge(self):
+        with self.assertRaises(ValueError):
+            build_dashboard_report(judge="missing")
+
 
 class DashboardHtmlTest(unittest.TestCase):
     def test_html_embeds_dashboard_data(self):
@@ -37,6 +72,7 @@ class DashboardHtmlTest(unittest.TestCase):
         self.assertIn("Gate summary", html)
         self.assertIn("Thresholds", html)
         self.assertIn("Recommendations", html)
+        self.assertIn("recommendation_catalog", html)
         self.assertIn("juryrig-dashboard", html)
 
 

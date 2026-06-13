@@ -4,14 +4,13 @@ from __future__ import annotations
 import argparse
 import json
 import threading
-import time
 import webbrowser
 from dataclasses import asdict
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from socketserver import TCPServer
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from .audits import (
     position_bias,
@@ -50,6 +49,30 @@ DEFAULT_THRESHOLDS = {
     "injection": 0.15,
     "consistency": 0.20,
 }
+METRIC_SPECS = [
+    ("position", "Position bias", "flip_rate"),
+    ("verbosity", "Verbosity lift", "mean_delta"),
+    ("injection", "Prompt injection", "max_delta"),
+    ("consistency", "Consistency spread", "spread"),
+]
+RECOMMENDATIONS = {
+    "position": (
+        "Randomize answer order",
+        "Run pairwise comparisons in both A/B and B/A order, then resolve disagreements before trusting the verdict.",
+    ),
+    "verbosity": (
+        "Penalize filler",
+        "Use concise reference answers and add rubric text that explicitly ignores non-informative padding.",
+    ),
+    "injection": (
+        "Harden judge prompts",
+        "Wrap candidate responses as quoted data and tell the judge that response-borne instructions are evidence, not commands.",
+    ),
+    "consistency": (
+        "Stabilize sampling",
+        "Lower temperature, retry unstable examples, and require panel agreement before gating model changes.",
+    ),
+}
 
 
 def build_dashboard_snapshot() -> dict[str, Any]:
@@ -74,7 +97,11 @@ def build_dashboard_snapshot() -> dict[str, Any]:
         "rubric": RUBRIC,
         "cases": len(CASES),
         "responses": len(CASES) * 2,
-        "thresholds": DEFAULT_THRESHOLDS,
+        "thresholds": dict(DEFAULT_THRESHOLDS),
+        "recommendation_catalog": {
+            key: {"title": title, "body": body}
+            for key, (title, body) in RECOMMENDATIONS.items()
+        },
         "judges": {
             "fair": fair_report,
             "rigged": rigged_report,
@@ -88,6 +115,75 @@ def build_dashboard_snapshot() -> dict[str, Any]:
         },
         "calibration": calibration,
     }
+
+
+def build_dashboard_report(
+    snapshot: dict[str, Any] | None = None,
+    *,
+    judge: str = "rigged",
+    thresholds: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    """Build a shareable report payload for one judge and threshold set."""
+    snapshot = snapshot or build_dashboard_snapshot()
+    if judge not in snapshot["judges"]:
+        raise ValueError(f"unknown judge: {judge}")
+    merged_thresholds = dict(snapshot.get("thresholds", DEFAULT_THRESHOLDS))
+    if thresholds:
+        merged_thresholds.update(_clean_thresholds(thresholds))
+    selected = snapshot["judges"][judge]
+    gates = build_gate_results(selected, merged_thresholds)
+    return {
+        "active_judge": judge,
+        "thresholds": merged_thresholds,
+        "gates": gates,
+        "recommendations": build_recommendations(gates),
+        "snapshot": snapshot,
+    }
+
+
+def build_gate_results(
+    judge_report: dict[str, Any],
+    thresholds: dict[str, float] | None = None,
+) -> list[dict[str, Any]]:
+    """Evaluate dashboard pass/fail gates for a judge report."""
+    limits = dict(DEFAULT_THRESHOLDS)
+    if thresholds:
+        limits.update(_clean_thresholds(thresholds))
+    results = []
+    for key, label, field in METRIC_SPECS:
+        value = abs(float(judge_report[key][field]))
+        threshold = limits[key]
+        results.append(
+            {
+                "key": key,
+                "label": label,
+                "value": value,
+                "threshold": threshold,
+                "failed": value > threshold,
+            }
+        )
+    return results
+
+
+def build_recommendations(gates: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Return remediation cards for failed gates."""
+    failed = [gate for gate in gates if gate["failed"]]
+    if not failed:
+        return [
+            {
+                "key": "ready",
+                "title": "Ready for CI gating",
+                "body": "This judge snapshot clears the configured gates. Keep sampling fresh examples before widening trust.",
+            }
+        ]
+    return [
+        {
+            "key": gate["key"],
+            "title": RECOMMENDATIONS[gate["key"]][0],
+            "body": RECOMMENDATIONS[gate["key"]][1],
+        }
+        for gate in failed
+    ]
 
 
 def build_dashboard_html(snapshot: dict[str, Any] | None = None) -> str:
@@ -104,15 +200,18 @@ def serve_dashboard(
     """Start the dashboard server and block until interrupted."""
     snapshot = build_dashboard_snapshot()
     html = build_dashboard_html(snapshot).encode()
-    payload = json.dumps(snapshot).encode()
 
     class DashboardHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
-            path = urlparse(self.path).path
+            parsed = urlparse(self.path)
+            path = parsed.path
             if path in {"/", "/index.html"}:
                 self._send(200, "text/html; charset=utf-8", html)
             elif path == "/api/report":
-                self._send(200, "application/json; charset=utf-8", payload)
+                try:
+                    self._send_json(self._report_payload(parsed.query))
+                except ValueError as error:
+                    self._send_json({"error": str(error)}, status=400)
             elif path == "/healthz":
                 self._send(200, "text/plain; charset=utf-8", b"ok")
             else:
@@ -128,6 +227,27 @@ def serve_dashboard(
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(body)
+
+        def _send_json(self, body: dict[str, Any], status: int = 200) -> None:
+            self._send(
+                status,
+                "application/json; charset=utf-8",
+                json.dumps(body, sort_keys=True).encode(),
+            )
+
+        def _report_payload(self, query: str) -> dict[str, Any]:
+            params = parse_qs(query)
+            judge = params.get("judge", ["rigged"])[0]
+            thresholds = {
+                key: values[0]
+                for key, values in params.items()
+                if key in DEFAULT_THRESHOLDS and values
+            }
+            return build_dashboard_report(
+                snapshot,
+                judge=judge,
+                thresholds=_clean_thresholds(thresholds),
+            )
 
     server = _DashboardServer((host, port), DashboardHandler)
     actual_port = server.server_address[1]
@@ -152,7 +272,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--no-open", action="store_true", help="Do not open a browser.")
+    parser.add_argument("--json", action="store_true", help="Print a dashboard report and exit.")
+    parser.add_argument("--judge", choices=("fair", "rigged"), default="rigged")
     args = parser.parse_args(argv)
+    if args.json:
+        print(json.dumps(build_dashboard_report(judge=args.judge), indent=2, sort_keys=True))
+        return
     serve_dashboard(host=args.host, port=args.port, open_browser=not args.no_open)
 
 
@@ -161,6 +286,18 @@ class _DashboardServer(ThreadingHTTPServer):
         TCPServer.server_bind(self)
         self.server_name = self.server_address[0]
         self.server_port = self.server_address[1]
+
+
+def _clean_thresholds(values: dict[str, Any]) -> dict[str, float]:
+    cleaned = {}
+    for key, value in values.items():
+        if key not in DEFAULT_THRESHOLDS:
+            continue
+        try:
+            cleaned[key] = max(0.0, float(value))
+        except (TypeError, ValueError):
+            continue
+    return cleaned
 
 
 def _audit_judge(judge: MockJudge) -> dict[str, Any]:
@@ -1261,7 +1398,7 @@ _HTML = """<!doctype html>
             <div class="recommendations" id="recommendations"></div>
             <div class="report-actions">
               <button class="button" id="copyReport"><svg viewBox="0 0 24 24"><path d="M9 9h10v10H9zM5 5h10v10"/></svg>Copy report</button>
-              <a class="button" href="/api/report" target="_blank" rel="noreferrer"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 9h8M8 13h8M8 17h5"/></svg>Open API JSON</a>
+              <a class="button" id="apiReport" href="/api/report" target="_blank" rel="noreferrer"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 9h8M8 13h8M8 17h5"/></svg>Open API JSON</a>
             </div>
           </article>
         </section>
@@ -1316,12 +1453,7 @@ _HTML = """<!doctype html>
       ["injection", "Prompt injection", (judge) => judge.injection.max_delta, signed],
       ["consistency", "Consistency spread", (judge) => judge.consistency.spread, money.format],
     ];
-    const advice = {
-      position: ["Randomize answer order", "Run pairwise comparisons in both A/B and B/A order, then resolve disagreements before trusting the verdict."],
-      verbosity: ["Penalize filler", "Use concise reference answers and add rubric text that explicitly ignores non-informative padding."],
-      injection: ["Harden judge prompts", "Wrap candidate responses as quoted data and tell the judge that response-borne instructions are evidence, not commands."],
-      consistency: ["Stabilize sampling", "Lower temperature, retry unstable examples, and require panel agreement before gating model changes."],
-    };
+    const advice = data.recommendation_catalog || {};
 
     const severity = (metric, value) => {
       const limit = thresholds[metric] || 0.2;
@@ -1377,6 +1509,7 @@ _HTML = """<!doctype html>
       renderGates(judge);
       renderRecommendations(judge);
       renderPanelRows();
+      updateApiReportLink();
     }
 
     function renderBiasBars(judge) {
@@ -1479,8 +1612,8 @@ _HTML = """<!doctype html>
       const failed = gateResults(judge).filter((result) => result.failed);
       const cards = failed.length
         ? failed.map((result) => advice[result.key])
-        : [["Ready for CI gating", "This judge snapshot clears the configured gates. Keep sampling fresh examples before widening trust."]];
-      document.getElementById("recommendations").innerHTML = cards.map(([title, body]) => `
+        : [{ title: "Ready for CI gating", body: "This judge snapshot clears the configured gates. Keep sampling fresh examples before widening trust." }];
+      document.getElementById("recommendations").innerHTML = cards.map(({ title, body }) => `
         <article class="recommendation">
           <strong>${title}</strong>
           <span>${body}</span>
@@ -1496,6 +1629,18 @@ _HTML = """<!doctype html>
         gates: gateResults(judge),
         snapshot: data,
       };
+    }
+
+    function apiReportUrl() {
+      const params = new URLSearchParams({ judge: activeJudge });
+      Object.entries(thresholds).forEach(([key, value]) => {
+        params.set(key, String(value));
+      });
+      return `/api/report?${params.toString()}`;
+    }
+
+    function updateApiReportLink() {
+      document.getElementById("apiReport").href = apiReportUrl();
     }
 
     function downloadReport() {
