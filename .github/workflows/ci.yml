@@ -16,7 +16,43 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install package
+        run: python -m pip install -e .
       - name: Run tests
         run: python -m unittest discover -s tests -v
-      - name: Run demo
-        run: PYTHONPATH=. python examples/audit_demo.py
+      - name: Run audit demo
+        run: python examples/audit_demo.py
+      - name: Exercise report CLI
+        run: |
+          juryrig-dashboard --json --judge fair > fair.json
+          juryrig-dashboard --json --judge rigged > rigged.json
+          python - <<'PY'
+          import json
+          for path, expected in (("fair.json", "fair"), ("rigged.json", "rigged")):
+              data = json.load(open(path, encoding="utf-8"))
+              assert data["active_judge"] == expected
+              assert data["gates"]
+              assert data["snapshot"]["judges"]
+          PY
+      - name: Exercise live dashboard HTTP surface
+        run: |
+          juryrig-dashboard --no-open --port 8765 > dashboard.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 20); do
+            curl -fsS http://127.0.0.1:8765/healthz && break
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:8765/ > index.html
+          grep -q 'juryrig' index.html
+          curl -fsS 'http://127.0.0.1:8765/api/report?judge=rigged&injection=0.8' > report.json
+          python - <<'PY'
+          import json
+          data = json.load(open("report.json", encoding="utf-8"))
+          assert data["active_judge"] == "rigged"
+          assert data["thresholds"]["injection"] == 0.8
+          PY
+          kill "$pid"
+          wait "$pid" || true
+          trap - EXIT
