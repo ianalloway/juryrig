@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import urllib.request
 from dataclasses import dataclass
@@ -119,13 +120,25 @@ def _http_json(url: str, headers: dict, payload: dict, timeout: float = 60.0) ->
         return json.loads(raw.read().decode())
 
 
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"Judge returned invalid JSON numeric constant: {value}")
+
+
 def _parse_judgment(text: str) -> Judgment:
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end == -1:
         raise ValueError(f"Judge returned non-JSON output: {text[:200]!r}")
-    data = json.loads(text[start : end + 1])
+    data = json.loads(text[start : end + 1], parse_constant=_reject_json_constant)
+    score = data["score"]
+    if isinstance(score, bool) or not isinstance(score, (int, float)):
+        raise ValueError("Judge returned score that is not a JSON number.")
+    score = float(score)
+    if not math.isfinite(score):
+        raise ValueError("Judge returned non-finite score.")
+    if not 0.0 <= score <= 1.0:
+        raise ValueError("Judge returned score outside the range [0.0, 1.0].")
     return Judgment(
-        score=max(0.0, min(1.0, float(data["score"]))),
+        score=score,
         reasoning=str(data.get("reasoning", "")),
     )
 
