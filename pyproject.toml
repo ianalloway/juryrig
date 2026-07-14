@@ -23,9 +23,6 @@ keywords = ["llm", "evals", "llm-as-judge", "calibration", "bias", "prompt-injec
 Homepage = "https://github.com/ianalloway/juryrig"
 Issues = "https://github.com/ianalloway/juryrig/issues"
 
-[project.scripts]
-juryrig-dashboard = "juryrig.dashboard:main"
-
 [tool.setuptools]
 packages = ["juryrig"]
 
