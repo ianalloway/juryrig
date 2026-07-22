@@ -29,31 +29,6 @@ the thing under test:
 pip install git+https://github.com/ianalloway/juryrig
 ```
 
-## Dashboard
-
-Installing juryrig adds a local dashboard launcher:
-
-```bash
-juryrig-dashboard
-```
-
-It opens a zero-dependency audit console at `http://127.0.0.1:8765` with a
-deterministic fair-vs-rigged judge snapshot, bias metrics, calibration bars,
-panel scores, live audit-threshold controls, recommendations, and JSON report
-export. Use `juryrig-dashboard --no-open` if you want the URL without opening a
-browser automatically. If port `8765` is already busy, the dashboard falls back
-to an open local port and prints the URL.
-
-For automation or CI logs, print the same report payload without starting the
-server:
-
-```bash
-juryrig-dashboard --json --judge rigged
-```
-
-The local server also exposes `/api/report`, including threshold overrides such
-as `/api/report?judge=rigged&injection=0.8`.
-
 ## Quickstart
 
 ```python
@@ -87,8 +62,18 @@ print(report.pooled, report.agreement)
 
 `position_bias()` is a pairwise audit and needs a judge with `compare()`;
 `MockJudge` implements both `compare()` and `judge()` so the quickstart runs
-without API credentials. Provider-backed judges such as `AnthropicJudge` and
-`OpenAIJudge` can be used with the single-response audits.
+without API credentials.
+
+### Optional: provider-backed judges
+
+`AnthropicJudge` and `OpenAIJudge` wrap the Anthropic/OpenAI HTTP APIs
+(stdlib-only, no extra dependencies) and work with the single-response
+audits. They're not exported from the top-level package — import them
+explicitly when you need a live model:
+
+```python
+from juryrig.providers import AnthropicJudge, OpenAIJudge  # needs *_API_KEY env var
+```
 
 Every audit returns a small frozen dataclass with a `flagged` property, so
 gating a CI pipeline is one `if`:

@@ -1,6 +1,6 @@
 import unittest
 
-from juryrig.judge import _parse_judgment
+from juryrig.providers import _parse_judgment
 
 
 class ParseJudgmentTest(unittest.TestCase):
