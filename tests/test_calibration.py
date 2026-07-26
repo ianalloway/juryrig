@@ -42,6 +42,16 @@ class ValidationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             brier_score([0.5], [2])
 
+    def test_rejects_non_positive_bins(self):
+        # Previously these bucketed nothing and returned 0.0 — an
+        # overconfident judge reported as perfectly calibrated.
+        for bins in (0, -5):
+            with self.subTest(bins=bins):
+                with self.assertRaises(ValueError):
+                    expected_calibration_error([0.95] * 4, [1, 0, 0, 0], bins=bins)
+                with self.assertRaises(ValueError):
+                    reliability_table([0.95] * 4, [1, 0, 0, 0], bins=bins)
+
 
 if __name__ == "__main__":
     unittest.main()

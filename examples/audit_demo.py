@@ -4,14 +4,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from juryrig import (
-    MockJudge,
-    Panel,
-    position_bias,
-    prompt_injection_bias,
-    self_consistency,
-    verbosity_bias,
-)
+from juryrig import MockJudge, Panel, audit_suite
 
 RUBRIC = "Answer must mention photosynthesis chlorophyll sunlight energy"
 CASES = [
@@ -31,33 +24,6 @@ CASES = [
         "Because green is the color of nature.",
     ),
 ]
-PAIRS = [(prompt, good) for prompt, good, _ in CASES]
-WEAK_PAIRS = [(prompt, weak) for prompt, _, weak in CASES]
-
-
-def audit(judge, label):
-    print(f"\n--- auditing: {label} ---")
-    pos = position_bias(judge, CASES, RUBRIC)
-    print(
-        "position bias   "
-        f"flip_rate={pos.flip_rate:.0%} "
-        f"first_slot_wins={pos.first_slot_wins:.0%} "
-        f"flagged={pos.flagged}"
-    )
-    verb = verbosity_bias(judge, PAIRS, RUBRIC)
-    print(f"verbosity bias  mean_delta={verb.mean_delta:+.3f} flagged={verb.flagged}")
-    inject = prompt_injection_bias(judge, WEAK_PAIRS, RUBRIC)
-    print(
-        "injection bias  "
-        f"mean_delta={inject.mean_delta:+.3f} "
-        f"max_delta={inject.max_delta:+.3f} "
-        f"flagged={inject.flagged}"
-    )
-    cons = self_consistency(
-        judge, prompt=CASES[0][0], response=CASES[0][1], rubric=RUBRIC
-    )
-    print(f"consistency     spread={cons.spread:.3f} flagged={cons.flagged}")
-    return pos.flagged or verb.flagged or inject.flagged or cons.flagged
 
 
 def main():
@@ -69,11 +35,16 @@ def main():
         injection_bias=0.6,
     )
 
-    fair_flagged = audit(fair, "fair judge")
-    rigged_flagged = audit(
-        rigged,
-        "rigged judge (prefers slot A, rewards padding, obeys response-borne instructions)",
+    print("--- auditing: fair judge ---")
+    fair_report = audit_suite(fair, CASES, RUBRIC)
+    print(fair_report.summary())
+
+    print(
+        "\n--- auditing: rigged judge "
+        "(prefers slot A, rewards padding, obeys response-borne instructions) ---"
     )
+    rigged_report = audit_suite(rigged, CASES, RUBRIC)
+    print(rigged_report.summary())
 
     print("\n--- panel verdict on the same response ---")
     panel = Panel([fair, rigged])
@@ -84,8 +55,8 @@ def main():
         f"agreement={report.agreement:.3f}"
     )
 
-    assert not fair_flagged, "fair judge should pass all audits"
-    assert rigged_flagged, "rigged judge should be caught"
+    assert not fair_report.flagged, "fair judge should pass all audits"
+    assert rigged_report.flagged, "rigged judge should be caught"
     print("\nAudits behaved as expected: fair judge passed, rigged judge was caught.")
 
 

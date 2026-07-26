@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import urllib.error
 import urllib.request
 
 from .judge import Judgment
@@ -27,8 +28,24 @@ def _http_json(url: str, headers: dict, payload: dict, timeout: float = 60.0) ->
         headers={"Content-Type": "application/json", **headers},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=timeout) as raw:
-        return json.loads(raw.read().decode())
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as raw:
+            return json.loads(raw.read().decode())
+    except urllib.error.HTTPError as exc:
+        # The API puts the useful part (bad key, unknown model, rate limit) in
+        # the body, which HTTPError's own message drops.
+        detail = exc.read().decode(errors="replace").strip()
+        raise RuntimeError(
+            f"{url} returned HTTP {exc.code}: {detail[:500] or exc.reason}"
+        ) from exc
+
+
+def _first_text_block(blocks: list) -> str:
+    """Text of the first text block. Anthropic may lead with non-text blocks."""
+    for block in blocks:
+        if isinstance(block, dict) and block.get("type") == "text":
+            return block["text"]
+    raise ValueError("Judge response contained no text block.")
 
 
 def _reject_json_constant(value: str) -> None:
@@ -78,7 +95,7 @@ class AnthropicJudge:
                 }],
             },
         )
-        return _parse_judgment(body["content"][0]["text"])
+        return _parse_judgment(_first_text_block(body["content"]))
 
 
 class OpenAIJudge:
