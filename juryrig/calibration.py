@@ -28,6 +28,7 @@ def reliability_table(
 ) -> list[CalibrationBin]:
     """Bucket scores and compare each bucket's mean score to its accuracy."""
     _check(scores, labels)
+    _check_bins(bins)
     table = []
     for i in range(bins):
         lower, upper = i / bins, (i + 1) / bins
@@ -57,6 +58,7 @@ def expected_calibration_error(
 ) -> float:
     """Weighted mean |confidence - accuracy| across bins. 0 = perfectly calibrated."""
     _check(scores, labels)
+    _check_bins(bins)
     total = len(scores)
     return sum(
         b.count / total * abs(b.mean_score - b.accuracy)
@@ -73,3 +75,10 @@ def _check(scores: list[float], labels: list[int]) -> None:
         raise ValueError("Scores must be in [0, 1].")
     if any(y not in (0, 1) for y in labels):
         raise ValueError("Labels must be 0 or 1.")
+
+
+def _check_bins(bins: int) -> None:
+    # Without this, bins <= 0 bucketed nothing and reported ECE 0.0 —
+    # an overconfident judge looking perfectly calibrated.
+    if bins < 1:
+        raise ValueError("bins must be at least 1.")

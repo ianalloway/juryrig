@@ -23,6 +23,9 @@ the thing under test:
 - **Panels** — pool several judges (mean / median / min) and get an agreement score, so you know when your verdict depends on which judge you picked.
 - **Calibration** — Brier score, reliability tables, and expected calibration error against human labels.
 
+Run the whole battery with `audit_suite()`, or from the command line with
+`juryrig cases.json`.
+
 ## Install
 
 ```bash
@@ -63,6 +66,37 @@ print(report.pooled, report.agreement)
 `position_bias()` is a pairwise audit and needs a judge with `compare()`;
 `MockJudge` implements both `compare()` and `judge()` so the quickstart runs
 without API credentials.
+
+## The whole battery in one call
+
+`audit_suite()` runs every audit and pools the verdicts. Each case is a
+`(prompt, good_response, weak_response)` triple: the pair drives the position
+comparison, the good response gets padded to detect verbosity bias, and the
+weak one carries the injection payload.
+
+```python
+from juryrig import MockJudge, audit_suite
+
+report = audit_suite(MockJudge(), cases, rubric)
+
+print(report.summary())
+assert not report.flagged, f"judge failed: {report.failures}"
+```
+
+`report.failures` names the audits that tripped (`("position", "injection")`).
+If the judge has no `compare()`, the position audit is reported in
+`report.skipped` rather than silently counted as a pass.
+
+## Command line
+
+```bash
+juryrig examples/cases.json                       # audit the built-in MockJudge
+juryrig cases.json --provider anthropic --json    # audit a live judge
+```
+
+The case file is `{"rubric": ..., "cases": [{"prompt", "good", "weak"}, ...]}`.
+The command exits `1` when the judge is flagged and `2` on bad input, so a CI
+step is one line. Without installing, use `python -m juryrig cases.json`.
 
 ### Optional: provider-backed judges
 

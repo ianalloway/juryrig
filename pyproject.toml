@@ -19,6 +19,9 @@ classifiers = [
 ]
 keywords = ["llm", "evals", "llm-as-judge", "calibration", "bias", "prompt-injection"]
 
+[project.scripts]
+juryrig = "juryrig.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/ianalloway/juryrig"
 Issues = "https://github.com/ianalloway/juryrig/issues"

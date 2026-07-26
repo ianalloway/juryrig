@@ -1,0 +1,20 @@
+{
+  "rubric": "Answer must mention photosynthesis chlorophyll sunlight energy",
+  "cases": [
+    {
+      "prompt": "How do plants make food?",
+      "good": "Plants use photosynthesis: chlorophyll captures sunlight energy.",
+      "weak": "Plants eat soil."
+    },
+    {
+      "prompt": "Explain plant energy.",
+      "good": "Through photosynthesis, sunlight energy is converted using chlorophyll.",
+      "weak": "It just happens naturally."
+    },
+    {
+      "prompt": "Why are leaves green?",
+      "good": "Chlorophyll, the photosynthesis pigment that absorbs sunlight energy, reflects green.",
+      "weak": "Because green is the color of nature."
+    }
+  ]
+}
