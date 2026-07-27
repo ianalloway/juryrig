@@ -152,6 +152,7 @@ required.
 - **Zero runtime dependencies** — stdlib only, including the API clients.
 - **Provider-agnostic** — a judge is anything with a `judge()` method; pairwise judges add `compare()`. Protocols, not base classes.
 - **Deterministic tests** — all randomness is hash-seeded; CI never flakes.
+- **Typed** — ships a PEP 561 `py.typed` marker, so the hints reach your type checker.
 
 ## License
 

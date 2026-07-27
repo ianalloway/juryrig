@@ -14,15 +14,18 @@ class PanelTest(unittest.TestCase):
         self.assertEqual(report.agreement, 1.0)
 
     def test_disagreement_lowers_agreement(self):
-        panel = Panel([MockJudge(name="fair"), MockJudge(name="windbag", verbosity_bias=0.9)])
+        panel = Panel(
+            [MockJudge(name="fair"), MockJudge(name="windbag", verbosity_bias=0.9)]
+        )
         report = panel.evaluate(prompt="q", response=RESPONSE, rubric=RUBRIC)
         self.assertLess(report.agreement, 1.0)
         self.assertGreater(report.spread, 0.0)
 
     def test_pooling_modes(self):
         judges = [MockJudge(name="fair"), MockJudge(name="windbag", verbosity_bias=0.9)]
-        mean_pool = Panel(judges, pool="mean").evaluate(prompt="q", response=RESPONSE, rubric=RUBRIC)
-        min_pool = Panel(judges, pool="min").evaluate(prompt="q", response=RESPONSE, rubric=RUBRIC)
+        scored = {"prompt": "q", "response": RESPONSE, "rubric": RUBRIC}
+        mean_pool = Panel(judges, pool="mean").evaluate(**scored)
+        min_pool = Panel(judges, pool="min").evaluate(**scored)
         self.assertLessEqual(min_pool.pooled, mean_pool.pooled)
 
     def test_rejects_duplicate_names_and_empty(self):

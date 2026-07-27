@@ -29,6 +29,9 @@ Issues = "https://github.com/ianalloway/juryrig/issues"
 [tool.setuptools]
 packages = ["juryrig"]
 
+[tool.setuptools.package-data]
+juryrig = ["py.typed"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py310"
