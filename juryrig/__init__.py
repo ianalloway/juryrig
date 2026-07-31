@@ -5,9 +5,11 @@ import them explicitly from `juryrig.providers` when you need a live API.
 """
 
 from .audits import (
+    DEFAULT_THRESHOLDS,
     ConsistencyReport,
     PositionBiasReport,
     PromptInjectionReport,
+    Thresholds,
     VerbosityBiasReport,
     position_bias,
     prompt_injection_bias,
@@ -24,6 +26,7 @@ __version__ = "0.1.0"
 __all__ = [
     "AuditSuiteReport",
     "ConsistencyReport",
+    "DEFAULT_THRESHOLDS",
     "Judge",
     "Judgment",
     "MockJudge",
@@ -32,6 +35,7 @@ __all__ = [
     "PanelReport",
     "PositionBiasReport",
     "PromptInjectionReport",
+    "Thresholds",
     "VerbosityBiasReport",
     "audit_suite",
     "brier_score",
