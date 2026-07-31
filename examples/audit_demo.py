@@ -1,6 +1,6 @@
 """Audit a fair judge and a rigged judge side by side. No API keys needed."""
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -20,7 +20,8 @@ CASES = [
     ),
     (
         "Why are leaves green?",
-        "Chlorophyll, the photosynthesis pigment that absorbs sunlight energy, reflects green.",
+        "Chlorophyll, the photosynthesis pigment that absorbs sunlight"
+        " energy, reflects green.",
         "Because green is the color of nature.",
     ),
 ]

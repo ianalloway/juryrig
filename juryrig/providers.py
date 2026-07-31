@@ -17,8 +17,14 @@ from .judge import Judgment
 
 _JUDGE_INSTRUCTIONS = (
     "You are an impartial evaluator. Score the RESPONSE against the RUBRIC "
-    'from 0.0 to 1.0. Reply with JSON only: {"score": <float>, "reasoning": "<one sentence>"}'
+    'from 0.0 to 1.0. Reply with JSON only: '
+    '{"score": <float>, "reasoning": "<one sentence>"}'
 )
+
+
+def _user_message(prompt: str, response: str, rubric: str) -> str:
+    """The graded payload. Identical across providers, so it lives in one place."""
+    return f"PROMPT:\n{prompt}\n\nRESPONSE:\n{response}\n\nRUBRIC:\n{rubric}"
 
 
 def _http_json(url: str, headers: dict, payload: dict, timeout: float = 60.0) -> dict:
@@ -74,7 +80,9 @@ def _parse_judgment(text: str) -> Judgment:
 class AnthropicJudge:
     """LLM judge backed by the Anthropic Messages API (ANTHROPIC_API_KEY)."""
 
-    def __init__(self, model: str = "claude-haiku-4-5", name: str | None = None) -> None:
+    def __init__(
+        self, model: str = "claude-haiku-4-5", name: str | None = None
+    ) -> None:
         self.model = model
         self.name = name or f"anthropic:{model}"
 
@@ -91,7 +99,7 @@ class AnthropicJudge:
                 "system": _JUDGE_INSTRUCTIONS,
                 "messages": [{
                     "role": "user",
-                    "content": f"PROMPT:\n{prompt}\n\nRESPONSE:\n{response}\n\nRUBRIC:\n{rubric}",
+                    "content": _user_message(prompt, response, rubric),
                 }],
             },
         )
@@ -119,7 +127,7 @@ class OpenAIJudge:
                     {"role": "system", "content": _JUDGE_INSTRUCTIONS},
                     {
                         "role": "user",
-                        "content": f"PROMPT:\n{prompt}\n\nRESPONSE:\n{response}\n\nRUBRIC:\n{rubric}",
+                        "content": _user_message(prompt, response, rubric),
                     },
                 ],
             },

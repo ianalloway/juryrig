@@ -20,3 +20,21 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Run demo
         run: PYTHONPATH=. python examples/audit_demo.py
+      - name: Check the installed package and console script
+        run: |
+          pip install .
+          cd "$(mktemp -d)"  # install must work without the source tree
+          python -c "import juryrig; print(juryrig.__version__)"
+          juryrig "$GITHUB_WORKSPACE/examples/cases.json"
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint
+        run: ruff check .
