@@ -7,15 +7,42 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, fields
 from pathlib import Path
 
+from .audits import Thresholds
 from .judge import Judge, MockJudge
 from .suite import AuditSuiteReport, audit_suite
 
 
-def load_cases(path: Path) -> tuple[str, list[tuple[str, str, str]]]:
-    """Read a case file: {"rubric": str, "cases": [{prompt, good, weak}, ...]}."""
+def _load_thresholds(raw: dict, path: Path) -> Thresholds:
+    """Read the optional "thresholds" object, rejecting unknown keys.
+
+    A typo'd key would otherwise be ignored, silently leaving the strict
+    default in force while the author believes they loosened it.
+    """
+    overrides = raw.get("thresholds", {})
+    if not isinstance(overrides, dict):
+        raise ValueError(f"{path}: 'thresholds' must be an object.")
+    known = {f.name for f in fields(Thresholds)}
+    unknown = sorted(set(overrides) - known)
+    if unknown:
+        raise ValueError(
+            f"{path}: unknown threshold(s) {', '.join(unknown)}. "
+            f"Valid keys: {', '.join(sorted(known))}."
+        )
+    bad = sorted(
+        k
+        for k, v in overrides.items()
+        if isinstance(v, bool) or not isinstance(v, (int, float))
+    )
+    if bad:
+        raise ValueError(f"{path}: threshold(s) must be numbers: {', '.join(bad)}.")
+    return Thresholds(**overrides)
+
+
+def load_cases(path: Path) -> tuple[str, list[tuple[str, str, str]], Thresholds]:
+    """Read a case file: {"rubric": str, "cases": [...], "thresholds": {...}}."""
     try:
         raw = json.loads(path.read_text())
     except json.JSONDecodeError as exc:
@@ -41,7 +68,7 @@ def load_cases(path: Path) -> tuple[str, list[tuple[str, str, str]]]:
                 f"{path} case {i} is missing non-empty {', '.join(missing)}."
             )
         cases.append((entry["prompt"], entry["good"], entry["weak"]))
-    return rubric, cases
+    return rubric, cases, _load_thresholds(raw, path)
 
 
 def build_judge(provider: str, model: str | None) -> Judge:
@@ -117,9 +144,11 @@ def main(argv: list[str] | None = None) -> int:
         print("juryrig: --runs must be at least 1", file=sys.stderr)
         return 2
     try:
-        rubric, cases = load_cases(args.cases)
+        rubric, cases, thresholds = load_cases(args.cases)
         judge = build_judge(args.provider, args.model)
-        report = audit_suite(judge, cases, rubric, runs=args.runs)
+        report = audit_suite(
+            judge, cases, rubric, runs=args.runs, thresholds=thresholds
+        )
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"juryrig: {exc}", file=sys.stderr)
         return 2

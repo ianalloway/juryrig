@@ -5,6 +5,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
+from juryrig import DEFAULT_THRESHOLDS
 from juryrig.cli import load_cases, main
 
 CASE_FILE = {
@@ -96,16 +97,61 @@ class ExitCodeTest(CliHarness):
         self.assertIn("--runs", err)
 
 
+class ThresholdsFromCaseFileTest(CliHarness):
+    def test_loosened_threshold_turns_a_failure_into_a_pass(self):
+        # Identical-scoring responses make compare() break the tie toward
+        # slot A, which trips the position audit at the default tolerance.
+        tied = {
+            "rubric": CASE_FILE["rubric"],
+            "cases": [{"prompt": "p", "good": "nothing", "weak": "also nothing"}],
+        }
+        flagged_code, _, _ = self.run_cli(tied)
+        passed_code, out, _ = self.run_cli(
+            {**tied, "thresholds": {"position_flip_rate": 1.0,
+                                    "position_slot_skew": 0.5}}
+        )
+
+        self.assertEqual(flagged_code, 1)
+        self.assertEqual(passed_code, 0)
+        self.assertIn("PASSED", out)
+
+    def test_unknown_threshold_key_is_rejected(self):
+        code, _, err = self.run_cli(
+            {**CASE_FILE, "thresholds": {"positon_flip_rate": 0.9}}  # typo
+        )
+
+        self.assertEqual(code, 2)
+        self.assertIn("unknown threshold", err)
+        self.assertIn("positon_flip_rate", err)
+
+    def test_non_numeric_and_negative_thresholds_rejected(self):
+        for overrides in ({"position_flip_rate": "high"}, {"position_flip_rate": -1}):
+            with self.subTest(overrides=overrides):
+                code, _, err = self.run_cli({**CASE_FILE, "thresholds": overrides})
+                self.assertEqual(code, 2)
+                self.assertTrue(err.startswith("juryrig:"))
+
+    def test_json_output_reports_the_thresholds_used(self):
+        _, out, _ = self.run_cli(
+            {**CASE_FILE, "thresholds": {"verbosity_mean_delta": 0.42}}, "--json"
+        )
+
+        payload = json.loads(out)
+        applied = payload["audits"]["verbosity"]["thresholds"]
+        self.assertEqual(applied["verbosity_mean_delta"], 0.42)
+
+
 class LoadCasesTest(unittest.TestCase):
     def test_reads_rubric_and_triples(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "cases.json"
             path.write_text(json.dumps(CASE_FILE))
-            rubric, cases = load_cases(path)
+            rubric, cases, thresholds = load_cases(path)
 
         self.assertEqual(rubric, CASE_FILE["rubric"])
         self.assertEqual(len(cases), 1)
         self.assertEqual(len(cases[0]), 3)
+        self.assertEqual(thresholds, DEFAULT_THRESHOLDS)
 
 
 if __name__ == "__main__":

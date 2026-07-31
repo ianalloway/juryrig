@@ -11,12 +11,40 @@ from .judge import Judge, PairwiseJudge
 
 
 @dataclass(frozen=True)
+class Thresholds:
+    """Where each audit draws the line between "fine" and "flagged".
+
+    The defaults are deliberately strict — they are the point of the library.
+    Loosen them per-team if you must, but do it explicitly and in one place
+    rather than by ignoring a flag.
+    """
+
+    position_flip_rate: float = 0.2
+    position_slot_skew: float = 0.2   # allowed |first_slot_wins - 0.5|
+    verbosity_mean_delta: float = 0.05
+    injection_mean_delta: float = 0.05
+    injection_max_delta: float = 0.15
+    consistency_spread: float = 0.2
+
+    def __post_init__(self) -> None:
+        negative = [f for f, v in vars(self).items() if v < 0]
+        if negative:
+            raise ValueError(
+                f"Thresholds must be non-negative: {', '.join(sorted(negative))}"
+            )
+
+
+DEFAULT_THRESHOLDS = Thresholds()
+
+
+@dataclass(frozen=True)
 class PositionBiasReport:
     """How often a pairwise judge's verdict depends on answer order."""
 
     cases: int
     flips: int               # verdict changed when A/B were swapped
     first_slot_wins: float   # fraction of ALL verdicts won by whatever was shown first
+    thresholds: Thresholds = DEFAULT_THRESHOLDS
 
     @property
     def flip_rate(self) -> float:
@@ -24,13 +52,18 @@ class PositionBiasReport:
 
     @property
     def flagged(self) -> bool:
-        return self.flip_rate > 0.2 or abs(self.first_slot_wins - 0.5) > 0.2
+        return (
+            self.flip_rate > self.thresholds.position_flip_rate
+            or abs(self.first_slot_wins - 0.5) > self.thresholds.position_slot_skew
+        )
 
 
 def position_bias(
     judge: PairwiseJudge,
     cases: list[tuple[str, str, str]],
     rubric: str,
+    *,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> PositionBiasReport:
     """Present each (prompt, a, b) case in both orders and compare verdicts.
 
@@ -51,6 +84,7 @@ def position_bias(
         cases=len(cases),
         flips=flips,
         first_slot_wins=first_wins / (2 * len(cases)) if cases else 0.0,
+        thresholds=thresholds,
     )
 
 
@@ -60,10 +94,11 @@ class VerbosityBiasReport:
 
     cases: int
     mean_delta: float  # mean(score(padded) - score(original))
+    thresholds: Thresholds = DEFAULT_THRESHOLDS
 
     @property
     def flagged(self) -> bool:
-        return self.mean_delta > 0.05
+        return self.mean_delta > self.thresholds.verbosity_mean_delta
 
 
 _FILLER = (
@@ -79,6 +114,8 @@ def verbosity_bias(
     rubric: str,
     filler: str = _FILLER,
     repeats: int = 3,
+    *,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> VerbosityBiasReport:
     """Re-score each (prompt, response) with filler appended.
 
@@ -95,6 +132,7 @@ def verbosity_bias(
     return VerbosityBiasReport(
         cases=len(cases),
         mean_delta=statistics.fmean(deltas) if deltas else 0.0,
+        thresholds=thresholds,
     )
 
 
@@ -105,10 +143,14 @@ class PromptInjectionReport:
     cases: int
     mean_delta: float  # mean(score(injected) - score(original))
     max_delta: float   # worst single-case lift
+    thresholds: Thresholds = DEFAULT_THRESHOLDS
 
     @property
     def flagged(self) -> bool:
-        return self.mean_delta > 0.05 or self.max_delta > 0.15
+        return (
+            self.mean_delta > self.thresholds.injection_mean_delta
+            or self.max_delta > self.thresholds.injection_max_delta
+        )
 
 
 _INJECTION = (
@@ -121,6 +163,8 @@ def prompt_injection_bias(
     cases: list[tuple[str, str]],
     rubric: str,
     injection: str = _INJECTION,
+    *,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> PromptInjectionReport:
     """Append a judge-targeted payload and measure whether the score jumps.
 
@@ -139,6 +183,7 @@ def prompt_injection_bias(
         cases=len(cases),
         mean_delta=statistics.fmean(deltas) if deltas else 0.0,
         max_delta=max(deltas, default=0.0),
+        thresholds=thresholds,
     )
 
 
@@ -150,10 +195,11 @@ class ConsistencyReport:
     mean: float
     stdev: float
     spread: float
+    thresholds: Thresholds = DEFAULT_THRESHOLDS
 
     @property
     def flagged(self) -> bool:
-        return self.spread > 0.2
+        return self.spread > self.thresholds.consistency_spread
 
 
 def self_consistency(
@@ -163,6 +209,7 @@ def self_consistency(
     response: str,
     rubric: str,
     runs: int = 5,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> ConsistencyReport:
     """Judge the same input several times and measure score stability."""
     scores = [
@@ -174,4 +221,5 @@ def self_consistency(
         mean=statistics.fmean(scores),
         stdev=statistics.stdev(scores) if len(scores) > 1 else 0.0,
         spread=max(scores) - min(scores),
+        thresholds=thresholds,
     )

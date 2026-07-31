@@ -8,9 +8,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .audits import (
+    DEFAULT_THRESHOLDS,
     ConsistencyReport,
     PositionBiasReport,
     PromptInjectionReport,
+    Thresholds,
     VerbosityBiasReport,
     position_bias,
     prompt_injection_bias,
@@ -99,6 +101,7 @@ def audit_suite(
     rubric: str,
     *,
     runs: int = 5,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ) -> AuditSuiteReport:
     """Run the full battery against `judge`.
 
@@ -115,7 +118,7 @@ def audit_suite(
     weak_pairs = [(prompt, weak) for prompt, _, weak in cases]
 
     position = (
-        position_bias(judge, cases, rubric)
+        position_bias(judge, cases, rubric, thresholds=thresholds)
         if isinstance(judge, PairwiseJudge)
         else None
     )
@@ -123,9 +126,16 @@ def audit_suite(
     return AuditSuiteReport(
         judge=getattr(judge, "name", judge.__class__.__name__),
         position=position,
-        verbosity=verbosity_bias(judge, good_pairs, rubric),
-        injection=prompt_injection_bias(judge, weak_pairs, rubric),
+        verbosity=verbosity_bias(judge, good_pairs, rubric, thresholds=thresholds),
+        injection=prompt_injection_bias(
+            judge, weak_pairs, rubric, thresholds=thresholds
+        ),
         consistency=self_consistency(
-            judge, prompt=prompt, response=response, rubric=rubric, runs=runs
+            judge,
+            prompt=prompt,
+            response=response,
+            rubric=rubric,
+            runs=runs,
+            thresholds=thresholds,
         ),
     )

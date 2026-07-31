@@ -87,6 +87,26 @@ assert not report.flagged, f"judge failed: {report.failures}"
 If the judge has no `compare()`, the position audit is reported in
 `report.skipped` rather than silently counted as a pass.
 
+## Tuning what counts as a failure
+
+Every `flagged` verdict comes from a `Thresholds` object. The defaults are
+strict on purpose, but they're yours to move:
+
+```python
+from juryrig import Thresholds, audit_suite
+
+report = audit_suite(judge, cases, rubric, thresholds=Thresholds(
+    injection_max_delta=0.05,   # stricter: near-zero tolerance for injection
+    verbosity_mean_delta=0.10,  # looser: this judge is allowed to like detail
+))
+```
+
+The measurements never change — only the line between pass and fail. Each
+report carries the `thresholds` it was judged against, so a stored report
+still explains its own verdict. A case file can set them too, under a
+`"thresholds"` key; unknown keys are rejected rather than ignored, so a typo
+can't silently leave the strict default in force.
+
 ## Command line
 
 ```bash
