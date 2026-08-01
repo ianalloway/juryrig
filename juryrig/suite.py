@@ -73,6 +73,7 @@ class AuditSuiteReport:
         lines.append(
             "verbosity   "
             f"mean_delta={self.verbosity.mean_delta:+.3f} "
+            f"max_delta={self.verbosity.max_delta:+.3f} "
             f"flagged={self.verbosity.flagged}"
         )
         lines.append(

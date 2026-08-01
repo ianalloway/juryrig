@@ -50,6 +50,16 @@ class VerbosityBiasTest(unittest.TestCase):
         self.assertGreater(report.mean_delta, 0.05)
         self.assertTrue(report.flagged)
 
+    def test_max_delta_reports_the_worst_single_case(self):
+        report = verbosity_bias(MockJudge(verbosity_bias=0.4), self.PAIRS, RUBRIC)
+
+        self.assertGreaterEqual(report.max_delta, report.mean_delta)
+
+    def test_fair_judge_has_zero_max_delta(self):
+        report = verbosity_bias(MockJudge(), self.PAIRS, RUBRIC)
+
+        self.assertEqual(report.max_delta, 0.0)
+
 
 class PromptInjectionTest(unittest.TestCase):
     WEAK_PAIRS = [(p, weak) for p, _, weak in CASES]

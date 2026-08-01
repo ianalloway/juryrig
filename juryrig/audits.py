@@ -22,6 +22,7 @@ class Thresholds:
     position_flip_rate: float = 0.2
     position_slot_skew: float = 0.2   # allowed |first_slot_wins - 0.5|
     verbosity_mean_delta: float = 0.05
+    verbosity_max_delta: float = 0.15
     injection_mean_delta: float = 0.05
     injection_max_delta: float = 0.15
     consistency_spread: float = 0.2
@@ -94,11 +95,15 @@ class VerbosityBiasReport:
 
     cases: int
     mean_delta: float  # mean(score(padded) - score(original))
+    max_delta: float   # worst single-case lift
     thresholds: Thresholds = DEFAULT_THRESHOLDS
 
     @property
     def flagged(self) -> bool:
-        return self.mean_delta > self.thresholds.verbosity_mean_delta
+        return (
+            self.mean_delta > self.thresholds.verbosity_mean_delta
+            or self.max_delta > self.thresholds.verbosity_max_delta
+        )
 
 
 _FILLER = (
@@ -132,6 +137,7 @@ def verbosity_bias(
     return VerbosityBiasReport(
         cases=len(cases),
         mean_delta=statistics.fmean(deltas) if deltas else 0.0,
+        max_delta=max(deltas, default=0.0),
         thresholds=thresholds,
     )
 
