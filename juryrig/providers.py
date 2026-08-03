@@ -10,10 +10,54 @@ from __future__ import annotations
 import json
 import math
 import os
+import time
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 
 from .judge import Judgment
+
+# Transient by nature: rate limits, timeouts, and upstream hiccups. Anything
+# else (401, 404, 400) means the request itself is wrong and will stay wrong.
+_RETRYABLE_STATUSES = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
+
+
+@dataclass(frozen=True)
+class RetryPolicy:
+    """How hard to try again before giving up on a call.
+
+    An audit is many calls in a row, so one flaky response would otherwise
+    throw away every result collected before it.
+    """
+
+    attempts: int = 3          # total tries, not retries after the first
+    backoff: float = 0.5       # seconds before the 2nd try, doubled each time
+    max_backoff: float = 8.0
+
+    def __post_init__(self) -> None:
+        if self.attempts < 1:
+            raise ValueError("attempts must be at least 1.")
+        if self.backoff < 0 or self.max_backoff < 0:
+            raise ValueError("backoff values must be non-negative.")
+
+    def delay(self, attempt: int) -> float:
+        """Seconds to wait before `attempt` (1-based, so attempt 2 is first wait)."""
+        return min(self.backoff * 2 ** (attempt - 2), self.max_backoff)
+
+
+DEFAULT_RETRY = RetryPolicy()
+
+
+def _retry_after(exc: urllib.error.HTTPError) -> float | None:
+    """Honour a server's Retry-After when it gives one, in seconds."""
+    raw = getattr(exc, "headers", None)
+    value = raw.get("Retry-After") if raw else None
+    if value is None:
+        return None
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        return None  # HTTP-date form; fall back to our own backoff
 
 _JUDGE_INSTRUCTIONS = (
     "You are an impartial evaluator. Score the RESPONSE against the RUBRIC "
@@ -27,23 +71,43 @@ def _user_message(prompt: str, response: str, rubric: str) -> str:
     return f"PROMPT:\n{prompt}\n\nRESPONSE:\n{response}\n\nRUBRIC:\n{rubric}"
 
 
-def _http_json(url: str, headers: dict, payload: dict, timeout: float = 60.0) -> dict:
+def _http_json(
+    url: str,
+    headers: dict,
+    payload: dict,
+    timeout: float = 60.0,
+    retry: RetryPolicy = DEFAULT_RETRY,
+    sleep=time.sleep,
+) -> dict:
+    """POST JSON and return the decoded reply, retrying transient failures."""
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json", **headers},
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as raw:
-            return json.loads(raw.read().decode())
-    except urllib.error.HTTPError as exc:
-        # The API puts the useful part (bad key, unknown model, rate limit) in
-        # the body, which HTTPError's own message drops.
-        detail = exc.read().decode(errors="replace").strip()
-        raise RuntimeError(
-            f"{url} returned HTTP {exc.code}: {detail[:500] or exc.reason}"
-        ) from exc
+    for attempt in range(1, retry.attempts + 1):
+        last = attempt == retry.attempts
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as raw:
+                return json.loads(raw.read().decode())
+        except urllib.error.HTTPError as exc:
+            # The API puts the useful part (bad key, unknown model, rate limit)
+            # in the body, which HTTPError's own message drops. Read it once —
+            # the stream is not re-readable.
+            detail = exc.read().decode(errors="replace").strip()
+            if last or exc.code not in _RETRYABLE_STATUSES:
+                raise RuntimeError(
+                    f"{url} returned HTTP {exc.code}: {detail[:500] or exc.reason}"
+                ) from exc
+            wait = _retry_after(exc)
+            sleep(retry.delay(attempt + 1) if wait is None else wait)
+        except urllib.error.URLError as exc:
+            # Connection refused, DNS failure, timeout — no status to inspect.
+            if last:
+                raise RuntimeError(f"{url} unreachable: {exc.reason}") from exc
+            sleep(retry.delay(attempt + 1))
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def _first_text_block(blocks: list) -> str:
@@ -81,10 +145,14 @@ class AnthropicJudge:
     """LLM judge backed by the Anthropic Messages API (ANTHROPIC_API_KEY)."""
 
     def __init__(
-        self, model: str = "claude-haiku-4-5", name: str | None = None
+        self,
+        model: str = "claude-haiku-4-5",
+        name: str | None = None,
+        retry: RetryPolicy = DEFAULT_RETRY,
     ) -> None:
         self.model = model
         self.name = name or f"anthropic:{model}"
+        self.retry = retry
 
     def judge(self, *, prompt: str, response: str, rubric: str) -> Judgment:
         key = os.environ.get("ANTHROPIC_API_KEY")
@@ -102,6 +170,7 @@ class AnthropicJudge:
                     "content": _user_message(prompt, response, rubric),
                 }],
             },
+            retry=self.retry,
         )
         return _parse_judgment(_first_text_block(body["content"]))
 
@@ -109,9 +178,15 @@ class AnthropicJudge:
 class OpenAIJudge:
     """LLM judge backed by the OpenAI Chat Completions API (OPENAI_API_KEY)."""
 
-    def __init__(self, model: str = "gpt-4o-mini", name: str | None = None) -> None:
+    def __init__(
+        self,
+        model: str = "gpt-4o-mini",
+        name: str | None = None,
+        retry: RetryPolicy = DEFAULT_RETRY,
+    ) -> None:
         self.model = model
         self.name = name or f"openai:{model}"
+        self.retry = retry
 
     def judge(self, *, prompt: str, response: str, rubric: str) -> Judgment:
         key = os.environ.get("OPENAI_API_KEY")
@@ -131,5 +206,6 @@ class OpenAIJudge:
                     },
                 ],
             },
+            retry=self.retry,
         )
         return _parse_judgment(body["choices"][0]["message"]["content"])
