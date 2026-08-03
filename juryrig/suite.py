@@ -34,8 +34,9 @@ class AuditSuiteReport:
     judge: str
     verbosity: VerbosityBiasReport
     injection: PromptInjectionReport
-    consistency: ConsistencyReport
+    consistency: ConsistencyReport      # the least stable case, not the first
     position: PositionBiasReport | None = None
+    consistency_cases: int = 1          # how many cases the above was worst of
 
     @property
     def failures(self) -> tuple[str, ...]:
@@ -84,7 +85,8 @@ class AuditSuiteReport:
         )
         lines.append(
             "consistency "
-            f"spread={self.consistency.spread:.3f} "
+            f"worst_spread={self.consistency.spread:.3f} "
+            f"of={self.consistency_cases} "
             f"flagged={self.consistency.flagged}"
         )
         verdict = (
@@ -123,7 +125,20 @@ def audit_suite(
         if isinstance(judge, PairwiseJudge)
         else None
     )
-    prompt, response, _ = cases[0]
+    # Every case, not just the first: a judge can be rock-steady on one input
+    # and erratic on the next, and checking one would call that stable. The
+    # worst case is the one that matters, so keep it.
+    per_case = [
+        self_consistency(
+            judge,
+            prompt=prompt,
+            response=response,
+            rubric=rubric,
+            runs=runs,
+            thresholds=thresholds,
+        )
+        for prompt, response, _ in cases
+    ]
     return AuditSuiteReport(
         judge=getattr(judge, "name", judge.__class__.__name__),
         position=position,
@@ -131,12 +146,6 @@ def audit_suite(
         injection=prompt_injection_bias(
             judge, weak_pairs, rubric, thresholds=thresholds
         ),
-        consistency=self_consistency(
-            judge,
-            prompt=prompt,
-            response=response,
-            rubric=rubric,
-            runs=runs,
-            thresholds=thresholds,
-        ),
+        consistency=max(per_case, key=lambda report: report.spread),
+        consistency_cases=len(per_case),
     )
