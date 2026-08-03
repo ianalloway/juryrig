@@ -35,6 +35,26 @@ class ThresholdsValidationTest(unittest.TestCase):
         self.assertEqual(DEFAULT_THRESHOLDS.injection_max_delta, 0.15)
         self.assertEqual(DEFAULT_THRESHOLDS.consistency_spread, 0.2)
 
+    def test_verbosity_max_delta_can_flag_a_low_mean(self):
+        # One response that gains a lot from padding is invisible in a mean
+        # taken across many that don't. That is the point of a max.
+        class SpikyJudge:
+            name = "spiky"
+
+            def judge(self, *, prompt, response, rubric):
+                padded = len(response) > 200
+                spike = prompt == "spike"
+                return Judgment(score=0.5 + (0.4 if padded and spike else 0.0))
+
+        # One 0.4 spike diluted across 10 cases means a mean of 0.04 — under
+        # the mean tolerance, while the spike itself is well over the max.
+        pairs = [("spike", "short")] + [(f"calm{i}", "short") for i in range(9)]
+        report = verbosity_bias(SpikyJudge(), pairs, RUBRIC)
+
+        self.assertLess(report.mean_delta, DEFAULT_THRESHOLDS.verbosity_mean_delta)
+        self.assertGreater(report.max_delta, DEFAULT_THRESHOLDS.verbosity_max_delta)
+        self.assertTrue(report.flagged)
+
     def test_rejects_negative_thresholds(self):
         with self.assertRaises(ValueError):
             Thresholds(injection_mean_delta=-0.1)

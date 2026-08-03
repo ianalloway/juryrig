@@ -20,7 +20,7 @@ the thing under test:
 - **Verbosity-bias audit** — re-score responses padded with content-free filler; a fair judge shouldn't reward padding.
 - **Prompt-injection audit** — append judge-targeted instructions to bad responses; a robust judge should grade the answer, not obey it.
 - **Self-consistency** — same input, several runs; how stable is the score?
-- **Panels** — pool several judges (mean / median / min) and get an agreement score, so you know when your verdict depends on which judge you picked.
+- **Panels** — pool several judges (mean / median / min) and get an agreement score, so you know when your verdict depends on which judge you picked. Pairwise panels vote on A/B pairs and report a dead heat as one.
 - **Calibration** — Brier score, reliability tables, and expected calibration error against human labels.
 
 Run the whole battery with `audit_suite()`, or from the command line with
@@ -86,6 +86,25 @@ assert not report.flagged, f"judge failed: {report.failures}"
 `report.failures` names the audits that tripped (`("position", "injection")`).
 If the judge has no `compare()`, the position audit is reported in
 `report.skipped` rather than silently counted as a pass.
+
+## Panels of pairwise judges
+
+`Panel.evaluate()` pools scores; `Panel.compare()` pools A/B votes by majority:
+
+```python
+verdict = panel.compare(prompt="How do plants make food?",
+                        a="Photosynthesis converts sunlight...",
+                        b="Plants eat soil.",
+                        rubric=rubric)
+
+print(verdict.winner, verdict.agreement, verdict.votes)
+```
+
+An even split sets `winner` to `None` and `deadlocked` to `True`, rather than
+picking a side. A coin-flip winner would hide exactly the disagreement you
+convened a panel to find. Judges without `compare()` are rejected by name —
+silently dropping them would move the verdict while leaving `agreement`
+looking healthy.
 
 ## Tuning what counts as a failure
 

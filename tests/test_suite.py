@@ -1,6 +1,6 @@
 import unittest
 
-from juryrig import MockJudge, audit_suite
+from juryrig import Judgment, MockJudge, audit_suite
 
 RUBRIC = "Answer must mention photosynthesis chlorophyll sunlight energy"
 CASES = [
@@ -79,6 +79,36 @@ class AuditSuiteTest(unittest.TestCase):
         self.assertIn("PASSED", audit_suite(MockJudge(), CASES, RUBRIC).summary())
         rigged = audit_suite(MockJudge(injection_bias=0.6), CASES, RUBRIC)
         self.assertIn("FLAGGED", rigged.summary())
+
+    def test_consistency_covers_every_case_not_just_the_first(self):
+        """A judge steady on case 0 and erratic on case 1 must still flag."""
+
+        class SteadyThenErraticJudge:
+            name = "steady-then-erratic"
+
+            def __init__(self):
+                self.calls = 0
+
+            def judge(self, *, prompt, response, rubric):
+                self.calls += 1
+                if prompt == CASES[0][0]:      # first case: perfectly stable
+                    return Judgment(score=0.5)
+                return Judgment(score=0.1 if self.calls % 2 else 0.9)
+
+        report = audit_suite(SteadyThenErraticJudge(), CASES, RUBRIC, runs=4)
+
+        self.assertEqual(report.consistency_cases, len(CASES))
+        self.assertGreater(report.consistency.spread, 0.5)
+        self.assertIn("consistency", report.failures)
+
+    def test_consistency_reports_the_worst_case(self):
+        report = audit_suite(MockJudge(), CASES, RUBRIC)
+
+        # MockJudge is deterministic, so every case is stable and the worst
+        # of them is still a clean zero.
+        self.assertEqual(report.consistency.spread, 0.0)
+        self.assertEqual(report.consistency_cases, len(CASES))
+        self.assertNotIn("consistency", report.failures)
 
     def test_rejects_empty_cases(self):
         with self.assertRaises(ValueError):

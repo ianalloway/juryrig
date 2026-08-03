@@ -2,9 +2,33 @@
 from __future__ import annotations
 
 import statistics
+from collections import Counter
 from dataclasses import dataclass, field
+from typing import Literal
 
-from .judge import Judge
+from .judge import Judge, PairwiseJudge
+
+
+@dataclass(frozen=True)
+class PanelVerdict:
+    """Pooled winner from a panel of pairwise judges on one A/B pair.
+
+    `winner` is None when the vote is a dead heat. That is a real outcome —
+    reporting a coin-flip winner would hide exactly the disagreement a panel
+    exists to surface.
+    """
+
+    votes: dict[str, str] = field(default_factory=dict)
+    winner: Literal["A", "B"] | None = None
+    agreement: float = 1.0    # share of judges backing the winner
+
+    @property
+    def deadlocked(self) -> bool:
+        return self.winner is None
+
+    @property
+    def unanimous(self) -> bool:
+        return self.winner is not None and self.agreement >= 1.0
 
 
 @dataclass(frozen=True)
@@ -64,4 +88,32 @@ class Panel:
             pooled=pooled,
             spread=max(values) - min(values),
             agreement=1.0 - statistics.fmean(diffs),
+        )
+
+    def compare(self, *, prompt: str, a: str, b: str, rubric: str) -> PanelVerdict:
+        """Poll every judge on an A/B pair and pool the votes by majority.
+
+        Needs a panel of pairwise judges. Scoring judges are rejected by name
+        rather than silently dropped — a quietly shrinking jury would change
+        the verdict without changing the agreement number.
+        """
+        not_pairwise = [
+            j.name for j in self.judges if not isinstance(j, PairwiseJudge)
+        ]
+        if not_pairwise:
+            raise TypeError(
+                "Panel.compare() needs judges with compare(); these lack it: "
+                + ", ".join(not_pairwise)
+            )
+
+        votes = {
+            j.name: j.compare(prompt=prompt, a=a, b=b, rubric=rubric)
+            for j in self.judges
+        }
+        tally = Counter(votes.values())
+        (top, top_count), *rest = tally.most_common()
+        if rest and rest[0][1] == top_count:
+            return PanelVerdict(votes=votes, winner=None, agreement=0.5)
+        return PanelVerdict(
+            votes=votes, winner=top, agreement=top_count / len(votes)
         )

@@ -18,7 +18,7 @@ from .audits import (
 )
 from .calibration import brier_score, expected_calibration_error, reliability_table
 from .judge import Judge, Judgment, MockJudge, PairwiseJudge
-from .panel import Panel, PanelReport
+from .panel import Panel, PanelReport, PanelVerdict
 from .suite import AuditSuiteReport, audit_suite
 
 __version__ = "0.1.0"
@@ -33,6 +33,7 @@ __all__ = [
     "PairwiseJudge",
     "Panel",
     "PanelReport",
+    "PanelVerdict",
     "PositionBiasReport",
     "PromptInjectionReport",
     "Thresholds",
