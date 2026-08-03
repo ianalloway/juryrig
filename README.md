@@ -148,6 +148,18 @@ explicitly when you need a live model:
 from juryrig.providers import AnthropicJudge, OpenAIJudge  # needs *_API_KEY env var
 ```
 
+An audit is many calls in a row, so both retry transient failures (429, 5xx,
+network errors) with exponential backoff — one flaky response shouldn't throw
+away every result collected before it. A numeric `Retry-After` is honoured.
+Client errors like 401 and 404 fail fast, since they'd fail identically on
+every attempt.
+
+```python
+from juryrig.providers import AnthropicJudge, RetryPolicy
+
+judge = AnthropicJudge(retry=RetryPolicy(attempts=5, backoff=1.0))
+```
+
 Every audit returns a small frozen dataclass with a `flagged` property, so
 gating a CI pipeline is one `if`:
 

@@ -24,6 +24,10 @@ version in `pyproject.toml` has not moved off `0.1.0`.
   rather than picking a side.
 - `VerbosityBiasReport.max_delta`, matching `PromptInjectionReport`.
 - PEP 561 `py.typed` marker, so the package's annotations reach type checkers.
+- Provider judges retry transient HTTP failures (429, 408, 5xx) and network
+  errors with exponential backoff, honouring `Retry-After` when the server
+  sends a numeric one. Configurable via `RetryPolicy`; client errors such as
+  401 and 404 are not retried, since they fail identically every time.
 
 ### Changed
 
