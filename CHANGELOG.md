@@ -24,6 +24,10 @@ version in `pyproject.toml` has not moved off `0.1.0`.
   rather than picking a side.
 - `VerbosityBiasReport.max_delta`, matching `PromptInjectionReport`.
 - PEP 561 `py.typed` marker, so the package's annotations reach type checkers.
+- `max_workers` on every audit, `audit_suite()`, and the CLI (`--workers`)
+  runs judge calls in parallel. Serial by default; results are collected in
+  input order, so a report does not depend on the worker count. The judge
+  must be thread-safe to raise it.
 - Provider judges retry transient HTTP failures (429, 408, 5xx) and network
   errors with exponential backoff, honouring `Retry-After` when the server
   sends a numeric one. Configurable via `RetryPolicy`; client errors such as

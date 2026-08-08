@@ -105,6 +105,7 @@ def audit_suite(
     *,
     runs: int = 5,
     thresholds: Thresholds = DEFAULT_THRESHOLDS,
+    max_workers: int = 1,
 ) -> AuditSuiteReport:
     """Run the full battery against `judge`.
 
@@ -121,7 +122,9 @@ def audit_suite(
     weak_pairs = [(prompt, weak) for prompt, _, weak in cases]
 
     position = (
-        position_bias(judge, cases, rubric, thresholds=thresholds)
+        position_bias(
+            judge, cases, rubric, thresholds=thresholds, max_workers=max_workers
+        )
         if isinstance(judge, PairwiseJudge)
         else None
     )
@@ -136,15 +139,18 @@ def audit_suite(
             rubric=rubric,
             runs=runs,
             thresholds=thresholds,
+            max_workers=max_workers,
         )
         for prompt, response, _ in cases
     ]
     return AuditSuiteReport(
         judge=getattr(judge, "name", judge.__class__.__name__),
         position=position,
-        verbosity=verbosity_bias(judge, good_pairs, rubric, thresholds=thresholds),
+        verbosity=verbosity_bias(
+            judge, good_pairs, rubric, thresholds=thresholds, max_workers=max_workers
+        ),
         injection=prompt_injection_bias(
-            judge, weak_pairs, rubric, thresholds=thresholds
+            judge, weak_pairs, rubric, thresholds=thresholds, max_workers=max_workers
         ),
         consistency=max(per_case, key=lambda report: report.spread),
         consistency_cases=len(per_case),
