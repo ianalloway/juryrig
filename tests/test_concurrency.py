@@ -29,9 +29,21 @@ class MapTest(unittest.TestCase):
         self.assertEqual(ran_on, [main] * 3)
 
     def test_parallel_mode_actually_uses_threads(self):
-        ran_on = _map(lambda _: threading.current_thread().name, range(8), 4)
+        # Counting distinct thread names alone is racy: a task this fast can
+        # be finished by the first worker before the pool spins up the rest,
+        # yielding one name and a spurious failure. A barrier removes the
+        # race — it only clears when 4 calls are genuinely in flight, so 4
+        # distinct workers are guaranteed by the time it does.
+        barrier = threading.Barrier(4, timeout=5)
 
-        self.assertGreater(len(set(ran_on)), 1)
+        def wait_for_the_others(_):
+            barrier.wait()
+            return threading.current_thread().name
+
+        ran_on = _map(wait_for_the_others, range(4), 4)
+
+        self.assertEqual(len(ran_on), 4)
+        self.assertEqual(len(set(ran_on)), 4)
 
     def test_rejects_zero_or_negative_workers(self):
         for workers in (0, -1):
