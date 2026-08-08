@@ -133,6 +133,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Self-consistency repeats (default: 5).",
     )
     parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Parallel judge calls (default: 1, serial). Raise this for a "
+        "network-backed judge; the judge must be thread-safe.",
+    )
+    parser.add_argument(
         "--json", action="store_true", help="Emit the report as JSON."
     )
     return parser
@@ -143,11 +150,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.runs < 1:
         print("juryrig: --runs must be at least 1", file=sys.stderr)
         return 2
+    if args.workers < 1:
+        print("juryrig: --workers must be at least 1", file=sys.stderr)
+        return 2
     try:
         rubric, cases, thresholds = load_cases(args.cases)
         judge = build_judge(args.provider, args.model)
         report = audit_suite(
-            judge, cases, rubric, runs=args.runs, thresholds=thresholds
+            judge,
+            cases,
+            rubric,
+            runs=args.runs,
+            thresholds=thresholds,
+            max_workers=args.workers,
         )
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"juryrig: {exc}", file=sys.stderr)

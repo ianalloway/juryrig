@@ -106,6 +106,21 @@ convened a panel to find. Judges without `compare()` are rejected by name —
 silently dropping them would move the verdict while leaving `agreement`
 looking healthy.
 
+## Going faster against a real judge
+
+`audit_suite` on N cases is roughly 4N judge calls, which is minutes of wall
+time over a network. `max_workers` runs them in parallel:
+
+```python
+report = audit_suite(judge, cases, rubric, max_workers=8)
+```
+
+Serial by default, because a judge may be stateful or rate-limited and
+threading one behind your back would be a surprise. Results are collected in
+input order, so a report is identical no matter how many workers produced it
+— workers are a speed knob, never a correctness one. Your judge must be
+thread-safe to raise it. The CLI exposes the same thing as `--workers`.
+
 ## Tuning what counts as a failure
 
 Every `flagged` verdict comes from a `Thresholds` object. The defaults are
