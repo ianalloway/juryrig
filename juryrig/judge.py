@@ -24,13 +24,22 @@ class Judge(Protocol):
         ...
 
 
+Verdict = Literal["A", "B", "tie"]
+"""What a pairwise judge may answer.
+
+"tie" is optional: a judge that only ever returns "A" or "B" satisfies this
+just fine. Real judges frequently want to say two answers are equivalent, and
+forcing that into a coin-flip manufactures position bias that isn't there.
+"""
+
+
 @runtime_checkable
 class PairwiseJudge(Protocol):
     """Anything that can pick a winner between two responses."""
 
     name: str
 
-    def compare(self, *, prompt: str, a: str, b: str, rubric: str) -> Literal["A", "B"]:
+    def compare(self, *, prompt: str, a: str, b: str, rubric: str) -> Verdict:
         ...
 
 

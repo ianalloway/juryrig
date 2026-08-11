@@ -13,9 +13,11 @@ from .judge import Judge, PairwiseJudge
 class PanelVerdict:
     """Pooled winner from a panel of pairwise judges on one A/B pair.
 
-    `winner` is None when the vote is a dead heat. That is a real outcome —
-    reporting a coin-flip winner would hide exactly the disagreement a panel
-    exists to surface.
+    `winner` is None when the panel produced no winner — either the vote was
+    a dead heat, or the judges agreed the pair was a tie. Read `agreement` to
+    tell those apart: a split reports 0.5, a consensus tie reports its real
+    share. Reporting a coin-flip winner would hide exactly the disagreement a
+    panel exists to surface.
     """
 
     votes: dict[str, str] = field(default_factory=dict)
@@ -114,6 +116,12 @@ class Panel:
         (top, top_count), *rest = tally.most_common()
         if rest and rest[0][1] == top_count:
             return PanelVerdict(votes=votes, winner=None, agreement=0.5)
+        if top == "tie":
+            # The panel agreed, and what it agreed on was "neither". That is a
+            # verdict, not a failure to reach one, so agreement stays honest.
+            return PanelVerdict(
+                votes=votes, winner=None, agreement=top_count / len(votes)
+            )
         return PanelVerdict(
             votes=votes, winner=top, agreement=top_count / len(votes)
         )

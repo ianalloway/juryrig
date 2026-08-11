@@ -87,6 +87,25 @@ assert not report.flagged, f"judge failed: {report.failures}"
 If the judge has no `compare()`, the position audit is reported in
 `report.skipped` rather than silently counted as a pass.
 
+## Ties
+
+`compare()` may return `"tie"` as well as `"A"` or `"B"`. It's optional — a
+judge that only ever picks a side is unaffected — but real judges often want
+to call two answers equivalent, and forcing that into a coin flip manufactures
+position bias that isn't there.
+
+How `position_bias()` accounts for them:
+
+- **Tying both ways is not a flip.** The judge gave the same answer in both
+  orders, which is consistency, not order-dependence.
+- **Tying one way and picking the other way *is* a flip.** The verdict changed
+  when only the order changed — that's the thing being measured.
+- **Ties are excluded from `first_slot_wins`.** Counting them as "not won by
+  the first slot" would drag the ratio to 0 and flag a judge that ties
+  everything as maximally biased toward slot two. With nothing decisive to go
+  on the audit reports 0.5: no evidence of skew. The count is kept in
+  `report.ties` so it stays visible rather than silently dropped.
+
 ## Panels of pairwise judges
 
 `Panel.evaluate()` pools scores; `Panel.compare()` pools A/B votes by majority:
