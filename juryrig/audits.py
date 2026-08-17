@@ -65,8 +65,9 @@ class PositionBiasReport:
 
     cases: int
     flips: int               # verdict changed when A/B were swapped
-    first_slot_wins: float   # fraction of ALL verdicts won by whatever was shown first
+    first_slot_wins: float   # share of DECISIVE verdicts won by whatever was first
     thresholds: Thresholds = DEFAULT_THRESHOLDS
+    ties: int = 0            # verdicts where the judge declined to pick
 
     @property
     def flip_rate(self) -> float:
@@ -94,22 +95,36 @@ def position_bias(
     the order, not the content, decided the winner.
     """
 
-    def both_orders(case: tuple[str, str, str]) -> tuple[bool, int]:
+    def both_orders(case: tuple[str, str, str]) -> tuple[bool, int, int]:
         prompt, a, b = case
         forward = judge.compare(prompt=prompt, a=a, b=b, rubric=rubric)
         backward = judge.compare(prompt=prompt, a=b, b=a, rubric=rubric)
-        winner_fwd = a if forward == "A" else b
-        winner_bwd = b if backward == "A" else a
-        return winner_fwd != winner_bwd, (forward == "A") + (backward == "A")
+        # Resolve each verdict to the content it favoured, so "tie" is its own
+        # outcome rather than being folded into one of the responses.
+        winner_fwd = "tie" if forward == "tie" else (a if forward == "A" else b)
+        winner_bwd = "tie" if backward == "tie" else (b if backward == "A" else a)
+        decisive = [v for v in (forward, backward) if v != "tie"]
+        return (
+            winner_fwd != winner_bwd,
+            sum(v == "A" for v in decisive),
+            len(decisive),
+        )
 
     results = _map(both_orders, cases, max_workers)
-    flips = sum(flipped for flipped, _ in results)
-    first_wins = sum(wins for _, wins in results)
+    flips = sum(flipped for flipped, _, _ in results)
+    first_wins = sum(wins for _, wins, _ in results)
+    decisive = sum(count for _, _, count in results)
     return PositionBiasReport(
         cases=len(cases),
         flips=flips,
-        first_slot_wins=first_wins / (2 * len(cases)) if cases else 0.0,
+        # Ties are excluded from the denominator on purpose. Counting them as
+        # "not won by the first slot" would drag the ratio toward 0 and make a
+        # judge that ties everything look maximally biased toward slot two.
+        # With nothing decisive to go on, 0.5 is the honest answer: no evidence
+        # of skew either way.
+        first_slot_wins=first_wins / decisive if decisive else 0.5,
         thresholds=thresholds,
+        ties=(2 * len(cases)) - decisive,
     )
 
 

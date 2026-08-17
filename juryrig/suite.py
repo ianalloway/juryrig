@@ -69,6 +69,7 @@ class AuditSuiteReport:
                 "position    "
                 f"flip_rate={self.position.flip_rate:.0%} "
                 f"first_slot_wins={self.position.first_slot_wins:.0%} "
+                f"ties={self.position.ties} "
                 f"flagged={self.position.flagged}"
             )
         lines.append(

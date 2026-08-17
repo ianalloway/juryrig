@@ -87,6 +87,25 @@ assert not report.flagged, f"judge failed: {report.failures}"
 If the judge has no `compare()`, the position audit is reported in
 `report.skipped` rather than silently counted as a pass.
 
+## Ties
+
+`compare()` may return `"tie"` as well as `"A"` or `"B"`. It's optional — a
+judge that only ever picks a side is unaffected — but real judges often want
+to call two answers equivalent, and forcing that into a coin flip manufactures
+position bias that isn't there.
+
+How `position_bias()` accounts for them:
+
+- **Tying both ways is not a flip.** The judge gave the same answer in both
+  orders, which is consistency, not order-dependence.
+- **Tying one way and picking the other way *is* a flip.** The verdict changed
+  when only the order changed — that's the thing being measured.
+- **Ties are excluded from `first_slot_wins`.** Counting them as "not won by
+  the first slot" would drag the ratio to 0 and flag a judge that ties
+  everything as maximally biased toward slot two. With nothing decisive to go
+  on the audit reports 0.5: no evidence of skew. The count is kept in
+  `report.ties` so it stays visible rather than silently dropped.
+
 ## Panels of pairwise judges
 
 `Panel.evaluate()` pools scores; `Panel.compare()` pools A/B votes by majority:
@@ -184,10 +203,28 @@ assert not position_bias(judge, cases, rubric).flagged, "judge is positionally b
 
 ## Why the MockJudge has built-in flaws
 
-`MockJudge(position_bias=..., verbosity_bias=..., injection_bias=..., noise=...)`
-lets you dial in known defects. That's how juryrig tests itself — the audits
-must detect a rigged judge and clear a fair one — and it gives you a
-deterministic, network-free way to test *your* eval pipeline end to end.
+`MockJudge(position_bias=..., verbosity_bias=..., injection_bias=...,
+noise=..., instability=..., tie_margin=...)` lets you dial in known defects.
+That's how juryrig tests itself — the audits must detect a rigged judge and
+clear a fair one — and it gives you a deterministic, network-free way to test
+*your* eval pipeline end to end.
+
+`noise` and `instability` are not the same knob, and the difference trips
+people up:
+
+- **`noise`** is seeded on the input, so re-judging one response returns the
+  same score forever. It perturbs scores *across* responses.
+- **`instability`** is seeded on a call counter, so the same input scores
+  differently each time. It's the only flaw `self_consistency()` can detect —
+  a judge with `noise=0.9` reports a spread of exactly `0.0`.
+
+Instability is still reproducible: a fresh `MockJudge` replays the same
+sequence, so switching the flaw on doesn't make your tests flaky.
+
+`tie_margin` makes the judge answer `"tie"` when two responses score within
+it. Useful for exercising tie handling — and note that *without* it, two
+identical answers are handed to slot A by `compare()`'s tie-break, which the
+position audit correctly reports as bias.
 
 ## Calibration
 

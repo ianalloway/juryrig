@@ -24,6 +24,19 @@ version in `pyproject.toml` has not moved off `0.1.0`.
   rather than picking a side.
 - `VerbosityBiasReport.max_delta`, matching `PromptInjectionReport`.
 - PEP 561 `py.typed` marker, so the package's annotations reach type checkers.
+- `PairwiseJudge.compare()` may return `"tie"`. Optional — judges that only
+  return `"A"`/`"B"` are unaffected. `position_bias()` treats a consistent tie
+  as consistency rather than a flip, treats tie-one-way/pick-the-other as a
+  flip, and excludes ties from `first_slot_wins` so a judge that ties
+  everything is not reported as maximally slot-biased. The count is exposed
+  as `PositionBiasReport.ties`. `Panel.compare()` reports a tie plurality as
+  no winner while keeping `agreement` honest.
+- `MockJudge(instability=...)` varies its score between repeat judgements of
+  the same input, so `self_consistency()` finally has a built-in flaw to
+  detect — `noise` is seeded on the input and cannot. The drift is seeded on
+  a call counter, so a fresh judge replays the same sequence and tests stay
+  deterministic. `MockJudge(tie_margin=...)` answers `"tie"` for responses
+  scoring within the margin.
 - `max_workers` on every audit, `audit_suite()`, and the CLI (`--workers`)
   runs judge calls in parallel. Serial by default; results are collected in
   input order, so a report does not depend on the worker count. The judge
@@ -64,11 +77,4 @@ version in `pyproject.toml` has not moved off `0.1.0`.
 
 ### Known gaps
 
-- `PairwiseJudge.compare()` returns only `"A"` or `"B"` — it cannot express a
-  tie. Real judges often want to. Adding one is a protocol change that also
-  affects how `position_bias()` counts flips, so it is deliberately not done
-  here. `PanelVerdict.deadlocked` covers deadlock at the panel level only.
-- `MockJudge`'s `noise` is hash-seeded on `(prompt, response)`, so re-judging
-  one input is identical and `self_consistency` always reports a spread of
-  `0.0` against it. That is intentional (deterministic tests), but it means
-  `MockJudge(noise=...)` cannot demonstrate the consistency audit.
+- None currently tracked.
