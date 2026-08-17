@@ -203,10 +203,28 @@ assert not position_bias(judge, cases, rubric).flagged, "judge is positionally b
 
 ## Why the MockJudge has built-in flaws
 
-`MockJudge(position_bias=..., verbosity_bias=..., injection_bias=..., noise=...)`
-lets you dial in known defects. That's how juryrig tests itself — the audits
-must detect a rigged judge and clear a fair one — and it gives you a
-deterministic, network-free way to test *your* eval pipeline end to end.
+`MockJudge(position_bias=..., verbosity_bias=..., injection_bias=...,
+noise=..., instability=..., tie_margin=...)` lets you dial in known defects.
+That's how juryrig tests itself — the audits must detect a rigged judge and
+clear a fair one — and it gives you a deterministic, network-free way to test
+*your* eval pipeline end to end.
+
+`noise` and `instability` are not the same knob, and the difference trips
+people up:
+
+- **`noise`** is seeded on the input, so re-judging one response returns the
+  same score forever. It perturbs scores *across* responses.
+- **`instability`** is seeded on a call counter, so the same input scores
+  differently each time. It's the only flaw `self_consistency()` can detect —
+  a judge with `noise=0.9` reports a spread of exactly `0.0`.
+
+Instability is still reproducible: a fresh `MockJudge` replays the same
+sequence, so switching the flaw on doesn't make your tests flaky.
+
+`tie_margin` makes the judge answer `"tie"` when two responses score within
+it. Useful for exercising tie handling — and note that *without* it, two
+identical answers are handed to slot A by `compare()`'s tie-break, which the
+position audit correctly reports as bias.
 
 ## Calibration
 

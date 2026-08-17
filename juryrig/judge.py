@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
+import threading
 from dataclasses import dataclass
 from typing import Literal, Protocol, runtime_checkable
 
@@ -52,9 +54,15 @@ def _stable_unit(seed: int, *parts: str) -> float:
 class MockJudge:
     """Deterministic judge for tests and demos.
 
-    Scores by rubric keyword coverage, with configurable flaws
-    (position bias, verbosity bias, injection bias, noise) so juryrig's audits have
-    something real to detect. No network calls.
+    Scores by rubric keyword coverage, with configurable flaws (position bias,
+    verbosity bias, injection bias, noise, instability, tie margin) so every
+    juryrig audit has something real to detect. No network calls.
+
+    `noise` and `instability` differ in a way that matters. `noise` is seeded
+    on the input, so re-judging one response returns the same score forever —
+    it perturbs scores *across* responses. `instability` is seeded on a call
+    counter, so the same input scores differently each time it is judged,
+    which is the only thing `self_consistency` can detect.
     """
 
     def __init__(
@@ -65,6 +73,8 @@ class MockJudge:
         verbosity_bias: float = 0.0,
         injection_bias: float = 0.0,
         noise: float = 0.0,
+        instability: float = 0.0,
+        tie_margin: float = 0.0,
     ) -> None:
         self.name = name
         self.seed = seed
@@ -72,6 +82,15 @@ class MockJudge:
         self.verbosity_bias = verbosity_bias
         self.injection_bias = injection_bias
         self.noise = noise
+        self.instability = instability
+        self.tie_margin = tie_margin
+        # Audits may run judges in parallel, so the counter needs a lock.
+        self._calls = itertools.count()
+        self._lock = threading.Lock()
+
+    def _tick(self) -> int:
+        with self._lock:
+            return next(self._calls)
 
     def _base_score(self, response: str, rubric: str) -> float:
         wanted = {w.lower().strip(".,") for w in rubric.split() if len(w) > 3}
@@ -99,10 +118,18 @@ class MockJudge:
             score += self.injection_bias
         if self.noise:
             score += self.noise * (_stable_unit(self.seed, prompt, response) - 0.5)
+        if self.instability:
+            # Seeded on the call count, not the input, so the same response
+            # scores differently on each re-judge. The sequence is still fixed
+            # for a fresh judge, so tests stay reproducible.
+            drift = _stable_unit(self.seed, "call", str(self._tick())) - 0.5
+            score += self.instability * drift
         score = max(0.0, min(1.0, score))
         return Judgment(score=score, reasoning=f"{self.name} keyword coverage")
 
-    def compare(self, *, prompt: str, a: str, b: str, rubric: str):
+    def compare(self, *, prompt: str, a: str, b: str, rubric: str) -> Verdict:
         score_a = self.judge(prompt=prompt, response=a, rubric=rubric).score
         score_b = self.judge(prompt=prompt, response=b, rubric=rubric).score
+        if self.tie_margin and abs(score_a - score_b) <= self.tie_margin:
+            return "tie"
         return "A" if score_a + self.position_bias >= score_b else "B"
