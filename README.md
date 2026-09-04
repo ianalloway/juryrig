@@ -28,13 +28,8 @@ Run the whole battery with `audit_suite()`, or from the command line with
 
 ## Install
 
-> **PyPI publish pending** — `juryrig` is **not** on PyPI yet. Trusted Publishing
-> is wired in [`.github/workflows/publish.yml`](.github/workflows/publish.yml);
-> install from GitHub until the first release lands:
-
 ```bash
-pip install git+https://github.com/ianalloway/juryrig
-# after PyPI: pip install juryrig
+pip install juryrig
 ```
 
 ## Quickstart
@@ -88,13 +83,13 @@ print(report.summary())
 assert not report.flagged, f"judge failed: {report.failures}"
 ```
 
-`report.failures` names the audits that tripped (`("position", "injection")`).
+`report.failures` names the audits that tripped (`(\"position\", \"injection\")`).
 If the judge has no `compare()`, the position audit is reported in
 `report.skipped` rather than silently counted as a pass.
 
 ## Ties
 
-`compare()` may return `"tie"` as well as `"A"` or `"B"`. It's optional — a
+`compare()` may return `\"tie\"` as well as `\"A\"` or `\"B\"`. It's optional — a
 judge that only ever picks a side is unaffected — but real judges often want
 to call two answers equivalent, and forcing that into a coin flip manufactures
 position bias that isn't there.
@@ -105,8 +100,8 @@ How `position_bias()` accounts for them:
   orders, which is consistency, not order-dependence.
 - **Tying one way and picking the other way *is* a flip.** The verdict changed
   when only the order changed — that's the thing being measured.
-- **Ties are excluded from `first_slot_wins`.** Counting them as "not won by
-  the first slot" would drag the ratio to 0 and flag a judge that ties
+- **Ties are excluded from `first_slot_wins`.** Counting them as \"not won by
+  the first slot\" would drag the ratio to 0 and flag a judge that ties
   everything as maximally biased toward slot two. With nothing decisive to go
   on the audit reports 0.5: no evidence of skew. The count is kept in
   `report.ties` so it stays visible rather than silently dropped.
@@ -162,7 +157,7 @@ report = audit_suite(judge, cases, rubric, thresholds=Thresholds(
 The measurements never change — only the line between pass and fail. Each
 report carries the `thresholds` it was judged against, so a stored report
 still explains its own verdict. A case file can set them too, under a
-`"thresholds"` key; unknown keys are rejected rather than ignored, so a typo
+`\"thresholds\"` key; unknown keys are rejected rather than ignored, so a typo
 can't silently leave the strict default in force.
 
 ## Command line
@@ -172,7 +167,7 @@ juryrig examples/cases.json                       # audit the built-in MockJudge
 juryrig cases.json --provider anthropic --json    # audit a live judge
 ```
 
-The case file is `{"rubric": ..., "cases": [{"prompt", "good", "weak"}, ...]}`.
+The case file is `{\"rubric\": ..., \"cases\": [{\"prompt\", \"good\", \"weak\"}, ...]}`.
 The command exits `1` when the judge is flagged and `2` on bad input, so a CI
 step is one line. Without installing, use `python -m juryrig cases.json`.
 
@@ -203,7 +198,7 @@ Every audit returns a small frozen dataclass with a `flagged` property, so
 gating a CI pipeline is one `if`:
 
 ```python
-assert not position_bias(judge, cases, rubric).flagged, "judge is positionally biased"
+assert not position_bias(judge, cases, rubric).flagged, \"judge is positionally biased\"
 ```
 
 ## Why the MockJudge has built-in flaws
@@ -226,7 +221,7 @@ people up:
 Instability is still reproducible: a fresh `MockJudge` replays the same
 sequence, so switching the flaw on doesn't make your tests flaky.
 
-`tie_margin` makes the judge answer `"tie"` when two responses score within
+`tie_margin` makes the judge answer `\"tie\"` when two responses score within
 it. Useful for exercising tie handling — and note that *without* it, two
 identical answers are handed to slot A by `compare()`'s tie-break, which the
 position audit correctly reports as bias.
