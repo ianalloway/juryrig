@@ -28,8 +28,13 @@ Run the whole battery with `audit_suite()`, or from the command line with
 
 ## Install
 
+> **PyPI publish pending** — `juryrig` is **not** on PyPI yet. Trusted Publishing
+> is wired in [`.github/workflows/publish.yml`](.github/workflows/publish.yml);
+> install from GitHub until the first release lands:
+
 ```bash
 pip install git+https://github.com/ianalloway/juryrig
+# after PyPI: pip install juryrig
 ```
 
 ## Quickstart
