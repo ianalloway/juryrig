@@ -3,10 +3,13 @@
 Notable changes to juryrig. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-Nothing has been released yet, so everything below is unreleased and the
-version in `pyproject.toml` has not moved off `0.1.0`.
-
 ## [Unreleased]
+
+## [0.2.0] - 2026-09-09
+
+First changelogged release after `0.1.0` on PyPI. Ships the audit suite, CLI,
+thresholds, panels, ties, concurrency, and provider retries that were already
+on `main`.
 
 ### Added
 

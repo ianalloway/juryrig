@@ -3,6 +3,7 @@
 **Audit your LLM judges before you trust them.**
 
 [![CI](https://github.com/ianalloway/juryrig/actions/workflows/ci.yml/badge.svg)](https://github.com/ianalloway/juryrig/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/juryrig)](https://pypi.org/project/juryrig/)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Zero dependencies](https://img.shields.io/badge/dependencies-zero-16c784)
 ![License](https://img.shields.io/badge/license-MIT-blue)
@@ -31,6 +32,9 @@ Run the whole battery with `audit_suite()`, or from the command line with
 ```bash
 pip install juryrig
 ```
+
+Requires Python 3.10+. Package page: [pypi.org/project/juryrig](https://pypi.org/project/juryrig/).
+Source: [github.com/ianalloway/juryrig](https://github.com/ianalloway/juryrig).
 
 ## Quickstart
 
