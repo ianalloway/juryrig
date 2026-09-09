@@ -21,7 +21,7 @@ from .judge import Judge, Judgment, MockJudge, PairwiseJudge
 from .panel import Panel, PanelReport, PanelVerdict
 from .suite import AuditSuiteReport, audit_suite
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "AuditSuiteReport",
