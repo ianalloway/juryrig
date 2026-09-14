@@ -198,6 +198,35 @@ from juryrig.providers import AnthropicJudge, RetryPolicy
 judge = AnthropicJudge(retry=RetryPolicy(attempts=5, backoff=1.0))
 ```
 
+### Optional: any OpenAI-compatible endpoint (`HttpJudge`)
+
+`OpenAIJudge` / `AnthropicJudge` target those vendors' hosted APIs.
+`HttpJudge` talks to **any** server that speaks the OpenAI chat-completions
+wire format — Ollama, vLLM, LM Studio, OpenRouter, a company gateway, a
+local fine-tune — still with zero extra dependencies:
+
+```python
+from juryrig.http_judge import HttpJudge
+from juryrig import audit_suite
+
+judge = HttpJudge(
+    url="http://127.0.0.1:11434/v1/chat/completions",  # full endpoint URL
+    model="llama3.2",
+    # api_key="…"                 # optional; or set OPENAI_API_KEY
+    # headers={"X-Tenant": "dev"} # optional extra headers
+)
+
+# Implements both judge() and compare(), so the full suite — including
+# position bias — runs against the live model.
+report = audit_suite(judge, cases, rubric, max_workers=4)
+print(report.summary())
+```
+
+Point `url` at the full chat-completions path your server exposes. An API
+key is optional (many local servers need none). When one is required, pass
+`api_key=` or set the env named by `api_key_env` (default `OPENAI_API_KEY`).
+Retries use the same `RetryPolicy` as the provider judges.
+
 Every audit returns a small frozen dataclass with a `flagged` property, so
 gating a CI pipeline is one `if`:
 
