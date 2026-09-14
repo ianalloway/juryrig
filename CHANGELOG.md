@@ -5,6 +5,8 @@ Notable changes to juryrig. Format loosely follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-14
+
 ### Added
 
 - `HttpJudge` (`juryrig.http_judge`) — plug any OpenAI-compatible
