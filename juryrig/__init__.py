@@ -1,7 +1,8 @@
 """juryrig — audit your LLM judges before you trust them.
 
-Provider-backed judges (AnthropicJudge, OpenAIJudge) are not exported here;
-import them explicitly from `juryrig.providers` when you need a live API.
+Provider-backed judges (AnthropicJudge, OpenAIJudge) and `HttpJudge` are
+not exported here; import them explicitly from `juryrig.providers` /
+`juryrig.http_judge` when you need a live API.
 """
 
 from .audits import (

@@ -5,6 +5,14 @@ Notable changes to juryrig. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- `HttpJudge` (`juryrig.http_judge`) — plug any OpenAI-compatible
+  chat-completions HTTP endpoint in as a Juryrig judge (Ollama, vLLM, LM
+  Studio, gateways, …). Stdlib-only; API key optional. Implements both
+  `judge()` and `compare()` so `audit_suite()` including position bias can
+  run against a real model. Import explicitly, same pattern as providers.
+
 ## [0.2.0] - 2026-09-09
 
 First changelogged release after `0.1.0` on PyPI. Ships the audit suite, CLI,
