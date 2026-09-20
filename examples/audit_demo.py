@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from juryrig import MockJudge, Panel, audit_suite
+from juryrig import MockJudge, Panel, agreement_matrix, audit_suite
 
 RUBRIC = "Answer must mention photosynthesis chlorophyll sunlight energy"
 CASES = [
@@ -55,6 +55,15 @@ def main():
         f"pooled={report.pooled:.3f} "
         f"agreement={report.agreement:.3f}"
     )
+
+    print("\n--- pairwise agreement matrix (fair vs rigged) ---")
+    matrix = agreement_matrix(
+        [fair, rigged],
+        [(p, good) for p, good, _ in CASES],
+        RUBRIC,
+        epsilon=0.05,
+    )
+    print(matrix.summary())
 
     assert not fair_report.flagged, "fair judge should pass all audits"
     assert rigged_report.flagged, "rigged judge should be caught"

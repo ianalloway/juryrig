@@ -5,6 +5,19 @@ Notable changes to juryrig. Format loosely follows
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-20
+
+### Added
+
+- `agreement_matrix()` — pairwise concordance audit across N judges scoring
+  the same items. Reports exact match rate, within-ε rate, Cohen's κ (small
+  stdlib helper, no scipy), mean absolute delta, ASCII/Markdown matrices, and
+  a JSON-serializable `to_dict()`. Flagged when any pair falls below
+  `AgreementThresholds`.
+- `juryrig agree cases.json` CLI mode — builds MockJudge seed variants (or
+  named slots for a live provider), prints the matrix, exits `1` when any
+  pair is flagged. Case files may set `"agreement_thresholds"`.
+
 ## [0.2.1] - 2026-09-14
 
 ### Added

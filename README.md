@@ -22,6 +22,7 @@ the thing under test:
 - **Prompt-injection audit** — append judge-targeted instructions to bad responses; a robust judge should grade the answer, not obey it.
 - **Self-consistency** — same input, several runs; how stable is the score?
 - **Panels** — pool several judges (mean / median / min) and get an agreement score, so you know when your verdict depends on which judge you picked. Pairwise panels vote on A/B pairs and report a dead heat as one.
+- **Agreement matrix** — score the same items with N judges (or prompt variants) and print pairwise exact / within-ε rates plus Cohen's κ — a concordance audit for the panel you are about to trust.
 - **Calibration** — Brier score, reliability tables, and expected calibration error against human labels.
 
 Run the whole battery with `audit_suite()`, or from the command line with
@@ -169,11 +170,15 @@ can't silently leave the strict default in force.
 ```bash
 juryrig examples/cases.json                       # audit the built-in MockJudge
 juryrig cases.json --provider anthropic --json    # audit a live judge
+juryrig agree cases.json --seeds 0,1,2            # pairwise concordance matrix
 ```
 
 The case file is `{"rubric": ..., "cases": [{"prompt", "good", "weak"}, ...]}`.
 The command exits `1` when the judge is flagged and `2` on bad input, so a CI
 step is one line. Without installing, use `python -m juryrig cases.json`.
+`juryrig agree` scores each case's `good` response with every judge slot and
+prints an ASCII (or `--fmt markdown`) concordance matrix; `--json` emits the
+full nested structure including exact / within-ε / κ matrices.
 
 ### Optional: provider-backed judges
 
@@ -273,6 +278,31 @@ print(expected_calibration_error(scores, labels))
 
 A judge that says 0.9 should be right ~90% of the time. ECE tells you how far
 that promise is from reality.
+
+## Pairwise agreement matrix
+
+Before you pool judges into a panel, check whether they actually agree on the
+same items. `agreement_matrix()` scores every `(prompt, response)` with every
+judge and reports pairwise exact match, within-ε rates, and Cohen's κ
+(stdlib-only — no scipy):
+
+```python
+from juryrig import MockJudge, agreement_matrix
+
+report = agreement_matrix(
+    [MockJudge(name="primary", seed=0), MockJudge(name="shadow", seed=1)],
+    [("How do plants make food?", "Photosynthesis converts sunlight...")],
+    rubric,
+    epsilon=0.05,
+)
+print(report.summary())          # per-pair rates + ASCII matrix
+print(report.matrix(fmt="markdown"))
+assert not report.flagged, report.failures
+```
+
+`report.to_dict()` is JSON-serializable. Wrap one judge under several names
+(or prompt variants) when you want concordance across prompt wording rather
+than across models.
 
 ## Demo
 
