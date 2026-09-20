@@ -33,6 +33,18 @@ class CliHarness(unittest.TestCase):
                 code = main([str(path), *args])
             return code, out.getvalue(), err.getvalue()
 
+    def run_agree(self, payload, *args):
+        """Run `juryrig agree` against a temp case file."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "cases.json"
+            path.write_text(
+                payload if isinstance(payload, str) else json.dumps(payload)
+            )
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                code = main(["agree", str(path), *args])
+            return code, out.getvalue(), err.getvalue()
+
 
 class ExitCodeTest(CliHarness):
     def test_clean_judge_exits_zero(self):
@@ -152,6 +164,35 @@ class LoadCasesTest(unittest.TestCase):
         self.assertEqual(len(cases), 1)
         self.assertEqual(len(cases[0]), 3)
         self.assertEqual(thresholds, DEFAULT_THRESHOLDS)
+
+
+class AgreeCliTest(CliHarness):
+    def test_identical_seeds_pass(self):
+        # Same seed → identical MockJudge scores → perfect concordance.
+        code, out, _ = self.run_agree(
+            CASE_FILE, "--seeds", "0,0", "--names", "a,b"
+        )
+
+        self.assertEqual(code, 0)
+        self.assertIn("PASSED", out)
+        self.assertIn("a vs b", out)
+
+    def test_json_emits_matrices(self):
+        code, out, _ = self.run_agree(
+            CASE_FILE, "--seeds", "0,0", "--names", "a,b", "--json"
+        )
+
+        payload = json.loads(out)
+        self.assertEqual(code, 0)
+        self.assertFalse(payload["flagged"])
+        self.assertEqual(payload["judges"], ["a", "b"])
+        self.assertIn("within_eps", payload["matrices"])
+
+    def test_rejects_single_seed(self):
+        code, _, err = self.run_agree(CASE_FILE, "--seeds", "0")
+
+        self.assertEqual(code, 2)
+        self.assertIn("--seeds", err)
 
 
 if __name__ == "__main__":

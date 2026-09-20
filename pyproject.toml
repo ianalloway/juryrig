@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "juryrig"
-version = "0.2.1"
-description = "Audit your LLM judges: position bias, verbosity bias, prompt injection, consistency, panels, and calibration."
+version = "0.2.2"
+description = "Audit your LLM judges: position bias, verbosity bias, prompt injection, consistency, panels, calibration, and pairwise agreement."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Ian Alloway", email = "ian@allowayllc.com" }]
