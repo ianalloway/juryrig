@@ -5,6 +5,19 @@ Notable changes to juryrig. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- **Disagreement atlas** — `disagreement_atlas()` / `disagreement_atlas_from_report()`
+  map where a multi-judge panel splits. Reuses an `AgreementMatrixReport`
+  score grid (or scores via `agreement_matrix()` first). Ranks items by
+  score variance, pairwise disagreement, or categorical entropy; clusters
+  items by identical judge-pair split signatures; reports per-judge
+  contrarian rates against the panel median. Structured `DisagreementAtlas`
+  with `to_dict()`, `summary()`, `table()`, and `to_markdown()`.
+- `juryrig atlas cases.json` CLI mode — same judge slots as `agree`, prints a
+  readable ranking / cluster / contrarian table; `--json` and `--fmt markdown`
+  export the atlas.
+
 ## [0.3.0] - 2026-09-29
 
 The agreement matrix is a new public API and CLI mode, so this ships as a
