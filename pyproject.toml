@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "juryrig"
-version = "0.2.2"
+version = "0.3.0"
 description = "Audit your LLM judges: position bias, verbosity bias, prompt injection, consistency, panels, calibration, and pairwise agreement."
 readme = "README.md"
 license = { text = "MIT" }
