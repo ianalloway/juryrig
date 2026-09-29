@@ -195,5 +195,64 @@ class AgreeCliTest(CliHarness):
         self.assertIn("--seeds", err)
 
 
+class AtlasCliTest(CliHarness):
+    def run_atlas(self, payload, *args):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "cases.json"
+            path.write_text(
+                payload if isinstance(payload, str) else json.dumps(payload)
+            )
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                code = main(["atlas", str(path), *args])
+            return code, out.getvalue(), err.getvalue()
+
+    def test_ascii_summary_prints_sections(self):
+        code, out, _ = self.run_atlas(
+            CASE_FILE, "--seeds", "0,1,2", "--names", "a,b,c"
+        )
+
+        self.assertEqual(code, 0)
+        self.assertIn("ranked items", out)
+        self.assertIn("split clusters", out)
+        self.assertIn("contrarian rates", out)
+
+    def test_json_export(self):
+        code, out, _ = self.run_atlas(
+            CASE_FILE,
+            "--seeds",
+            "0,1",
+            "--names",
+            "a,b",
+            "--json",
+            "--ranking",
+            "pairwise",
+        )
+
+        payload = json.loads(out)
+        self.assertEqual(code, 0)
+        self.assertEqual(payload["judges"], ["a", "b"])
+        self.assertEqual(payload["ranking"], "pairwise")
+        self.assertIn("items", payload)
+        self.assertIn("clusters", payload)
+        self.assertIn("contrarian", payload)
+
+    def test_markdown_export(self):
+        code, out, _ = self.run_atlas(
+            CASE_FILE, "--seeds", "0,1", "--fmt", "markdown"
+        )
+
+        self.assertEqual(code, 0)
+        self.assertIn("# Disagreement atlas", out)
+        self.assertIn("## Ranked items", out)
+        self.assertIn("## Contrarian rates", out)
+
+    def test_rejects_bad_top(self):
+        code, _, err = self.run_atlas(CASE_FILE, "--seeds", "0,1", "--top", "0")
+
+        self.assertEqual(code, 2)
+        self.assertIn("--top", err)
+
+
 if __name__ == "__main__":
     unittest.main()

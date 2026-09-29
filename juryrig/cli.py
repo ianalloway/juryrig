@@ -1,7 +1,8 @@
 """Command-line audit runner: `juryrig cases.json`.
 
 Also: `juryrig agree cases.json` for a pairwise concordance matrix across
-several judges (or seed variants of MockJudge).
+several judges (or seed variants of MockJudge), and `juryrig atlas` for a
+disagreement atlas built on that same score grid.
 
 Exits non-zero when the judge / matrix is flagged, so a CI step is one line.
 """
@@ -18,6 +19,7 @@ from .agreement import (
     AgreementThresholds,
     agreement_matrix,
 )
+from .atlas import disagreement_atlas_from_report
 from .audits import Thresholds
 from .judge import Judge, MockJudge
 from .suite import AuditSuiteReport, audit_suite
@@ -223,7 +225,8 @@ def build_parser() -> argparse.ArgumentParser:
         prog="juryrig",
         description="Audit an LLM judge for position, verbosity, injection, "
         "and consistency flaws — or compare several judges with "
-        "`juryrig agree`. Exits 1 if flagged.",
+        "`juryrig agree` / map disagreements with `juryrig atlas`. "
+        "Exits 1 if flagged.",
     )
     parser.add_argument(
         "cases",
@@ -256,12 +259,15 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def build_agree_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="juryrig agree",
-        description="Pairwise concordance matrix across N judges scoring the "
-        "same items. Exits 1 if any pair is flagged.",
-    )
+def _build_multi_judge_parser(
+    prog: str,
+    description: str,
+    *,
+    json_help: str,
+    fmt_help: str,
+) -> argparse.ArgumentParser:
+    """Shared flags for `agree` and `atlas` (same case file + judge slots)."""
+    parser = argparse.ArgumentParser(prog=prog, description=description)
     parser.add_argument(
         "cases",
         type=Path,
@@ -287,7 +293,8 @@ def build_agree_parser() -> argparse.ArgumentParser:
         "--epsilon",
         type=float,
         default=0.05,
-        help="Within-ε agreement tolerance on scores (default: 0.05).",
+        help="Within-ε agreement / disagreement tolerance on scores "
+        "(default: 0.05).",
     )
     parser.add_argument(
         "--workers",
@@ -295,14 +302,46 @@ def build_agree_parser() -> argparse.ArgumentParser:
         default=1,
         help="Parallel judge calls (default: 1).",
     )
-    parser.add_argument(
-        "--json", action="store_true", help="Emit the matrix report as JSON."
-    )
+    parser.add_argument("--json", action="store_true", help=json_help)
     parser.add_argument(
         "--fmt",
         choices=("ascii", "markdown"),
         default="ascii",
-        help="Matrix table format when not using --json (default: ascii).",
+        help=fmt_help,
+    )
+    return parser
+
+
+def build_agree_parser() -> argparse.ArgumentParser:
+    return _build_multi_judge_parser(
+        "juryrig agree",
+        "Pairwise concordance matrix across N judges scoring the "
+        "same items. Exits 1 if any pair is flagged.",
+        json_help="Emit the matrix report as JSON.",
+        fmt_help="Matrix table format when not using --json (default: ascii).",
+    )
+
+
+def build_atlas_parser() -> argparse.ArgumentParser:
+    parser = _build_multi_judge_parser(
+        "juryrig atlas",
+        "Disagreement atlas: rank items by where judges diverge, cluster "
+        "by splitting judge pairs, and report per-judge contrarian rates. "
+        "Built from the same score grid as `juryrig agree`.",
+        json_help="Emit the atlas as JSON.",
+        fmt_help="Table format when not using --json (default: ascii).",
+    )
+    parser.add_argument(
+        "--ranking",
+        choices=("variance", "pairwise", "entropy"),
+        default="variance",
+        help="Item ranking metric (default: variance).",
+    )
+    parser.add_argument(
+        "--top",
+        type=int,
+        default=10,
+        help="How many ranked items to print in text modes (default: 10).",
     )
     return parser
 
@@ -374,10 +413,53 @@ def main_agree(argv: list[str]) -> int:
     return 1 if report.flagged else 0
 
 
+def main_atlas(argv: list[str]) -> int:
+    args = build_atlas_parser().parse_args(argv)
+    if args.workers < 1:
+        print("juryrig: --workers must be at least 1", file=sys.stderr)
+        return 2
+    if args.epsilon < 0:
+        print("juryrig: --epsilon must be non-negative", file=sys.stderr)
+        return 2
+    if args.top < 1:
+        print("juryrig: --top must be at least 1", file=sys.stderr)
+        return 2
+    try:
+        seeds = _parse_seeds(args.seeds)
+        names = _parse_names(args.names)
+        rubric, cases, thresholds = load_agreement_cases(args.cases)
+        judges = build_agreement_judges(
+            args.provider, seeds, names, args.model
+        )
+        # Score once via the agreement matrix, then atlas over the same grid.
+        report = agreement_matrix(
+            judges,
+            cases,
+            rubric,
+            epsilon=args.epsilon,
+            thresholds=thresholds,
+            max_workers=args.workers,
+        )
+        atlas = disagreement_atlas_from_report(report, ranking=args.ranking)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"juryrig: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(atlas.to_dict(), indent=2))
+    elif args.fmt == "markdown":
+        print(atlas.to_markdown(top=args.top))
+    else:
+        print(atlas.summary(top=args.top, fmt="ascii"))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "agree":
         return main_agree(argv[1:])
+    if argv and argv[0] == "atlas":
+        return main_atlas(argv[1:])
     return main_audit(argv)
 
 

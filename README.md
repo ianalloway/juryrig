@@ -23,6 +23,7 @@ the thing under test:
 - **Self-consistency** — same input, several runs; how stable is the score?
 - **Panels** — pool several judges (mean / median / min) and get an agreement score, so you know when your verdict depends on which judge you picked. Pairwise panels vote on A/B pairs and report a dead heat as one.
 - **Agreement matrix** — score the same items with N judges (or prompt variants) and print pairwise exact / within-ε rates plus Cohen's κ — a concordance audit for the panel you are about to trust.
+- **Disagreement atlas** — given that same multi-judge score grid, rank items by variance / pairwise split / categorical entropy, cluster by which judge pairs diverge, and report per-judge contrarian rates.
 - **Calibration** — Brier score, reliability tables, and expected calibration error against human labels.
 
 Run the whole battery with `audit_suite()`, or from the command line with
@@ -171,6 +172,7 @@ can't silently leave the strict default in force.
 juryrig examples/cases.json                       # audit the built-in MockJudge
 juryrig cases.json --provider anthropic --json    # audit a live judge
 juryrig agree cases.json --seeds 0,1,2            # pairwise concordance matrix
+juryrig atlas cases.json --seeds 0,1,2            # disagreement atlas
 ```
 
 The case file is `{"rubric": ..., "cases": [{"prompt", "good", "weak"}, ...]}`.
@@ -179,6 +181,9 @@ step is one line. Without installing, use `python -m juryrig cases.json`.
 `juryrig agree` scores each case's `good` response with every judge slot and
 prints an ASCII (or `--fmt markdown`) concordance matrix; `--json` emits the
 full nested structure including exact / within-ε / κ matrices.
+`juryrig atlas` reuses that score grid to rank disagreeing items, cluster by
+splitting judge pairs, and print contrarian rates (`--json` / `--fmt markdown`
+to export).
 
 ### Optional: provider-backed judges
 
@@ -303,6 +308,56 @@ assert not report.flagged, report.failures
 `report.to_dict()` is JSON-serializable. Wrap one judge under several names
 (or prompt variants) when you want concordance across prompt wording rather
 than across models.
+
+## Disagreement atlas
+
+The agreement matrix answers *whether* judges agree. The disagreement atlas
+answers *where* they don't — which items drive the split, which judge pairs
+diverge together, and which judges are chronically off the panel median.
+
+It builds on an `AgreementMatrixReport` (no re-scoring) or accepts the same
+`judges` / `cases` / `rubric` inputs and scores via `agreement_matrix()` first:
+
+```python
+from juryrig import MockJudge, agreement_matrix, disagreement_atlas
+
+judges = [
+    MockJudge(name="primary", seed=0),
+    MockJudge(name="shadow", seed=1),
+    MockJudge(name="audit", seed=2),
+]
+cases = [
+    ("How do plants make food?", "Photosynthesis converts sunlight..."),
+    ("Why are leaves green?", "Chlorophyll absorbs red/blue light..."),
+]
+
+report = agreement_matrix(judges, cases, rubric, epsilon=0.05)
+atlas = disagreement_atlas(report, ranking="variance")  # or "pairwise" / "entropy"
+
+print(atlas.summary())                 # ranked table + clusters + rates
+print(atlas.to_markdown(top=5))        # Markdown export
+assert atlas.items[0].ranking_score >= atlas.items[-1].ranking_score
+for entry in atlas.contrarian:
+    print(entry.judge, entry.rate, entry.items)
+```
+
+Item ranking metrics:
+
+- **`variance`** — population variance of the panel's scores on that item
+- **`pairwise`** — fraction of judge pairs whose scores differ by more than ε
+- **`entropy`** — Shannon entropy (bits) of discretized scores (same bucketing
+  as Cohen's κ in the agreement matrix)
+
+Ties are broken deterministically: items by ranking score descending then
+item index ascending; clusters by size descending then split-pair signature
+lexicographically.
+
+`atlas.to_dict()` is JSON-serializable. From the CLI:
+
+```bash
+juryrig atlas cases.json --seeds 0,1,2 --ranking pairwise --fmt markdown
+juryrig atlas cases.json --seeds 0,1,2 --json
+```
 
 ## Demo
 
