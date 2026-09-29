@@ -103,10 +103,16 @@ class ContrarianRate:
 class DisagreementAtlas:
     """Structured map of where a multi-judge panel disagrees.
 
-    Items are ordered by the requested ranking metric (highest first).
-    Clusters group items that share an identical judge-pair split
-    signature. Contrarian rates compare each judge to the per-item
-    median score.
+    **Ordering (deterministic tie-breakers):**
+
+    - *Items* are sorted by ``ranking_score`` descending, then by ``index``
+      ascending when scores tie (including bit-equal floating-point ties).
+    - *Clusters* are sorted by ``size`` descending, then by ``split_pairs``
+      lexicographically ascending. Indices inside a cluster are ascending.
+    - *Contrarian* entries follow the judge order from the source report.
+
+    Ranking metrics choose ``ranking_score`` (variance / pairwise rate /
+    entropy); they do not change the tie-break rules above.
     """
 
     judges: tuple[str, ...]
@@ -291,6 +297,10 @@ def disagreement_atlas_from_report(
     """Build an atlas from an existing :class:`AgreementMatrixReport`.
 
     Reuses ``report.scores`` and ``report.epsilon`` — no extra judge calls.
+
+    Item order: ``ranking_score`` descending, then item ``index`` ascending.
+    Cluster order: cluster size descending, then ``split_pairs``
+    lexicographically ascending (indices within a cluster ascending).
     """
     if ranking not in {"variance", "pairwise", "entropy"}:
         raise ValueError(
@@ -355,18 +365,20 @@ def disagreement_atlas_from_report(
 
     items.sort(key=lambda item: (-item.ranking_score, item.index))
 
-    # Cluster by identical split-pair signature; keep insertion order of first
-    # appearance in ranking so the most-disputed signature surfaces first.
+    # Cluster by identical split-pair signature. Order is independent of
+    # ranking appearance: larger clusters first, then lexicographic signature.
     buckets: dict[tuple[str, ...], list[int]] = defaultdict(list)
-    order: list[tuple[str, ...]] = []
     for item in items:
-        key = item.split_pairs
-        if key not in buckets:
-            order.append(key)
-        buckets[key].append(item.index)
+        buckets[item.split_pairs].append(item.index)
     clusters = tuple(
-        SplitCluster(split_pairs=key, item_indices=tuple(buckets[key]))
-        for key in order
+        SplitCluster(
+            split_pairs=key,
+            item_indices=tuple(sorted(indices)),
+        )
+        for key, indices in sorted(
+            buckets.items(),
+            key=lambda kv: (-len(kv[1]), kv[0]),
+        )
     )
 
     # Contrarian vs median: |score - median| > epsilon.

@@ -14,6 +14,8 @@ Notable changes to juryrig. Format loosely follows
   items by identical judge-pair split signatures; reports per-judge
   contrarian rates against the panel median. Structured `DisagreementAtlas`
   with `to_dict()`, `summary()`, `table()`, and `to_markdown()`.
+  Ordering is deterministic: items by ranking score desc then index asc;
+  clusters by size desc then split-pair signature lexicographically.
 - `juryrig atlas cases.json` CLI mode — same judge slots as `agree`, prints a
   readable ranking / cluster / contrarian table; `--json` and `--fmt markdown`
   export the atlas.

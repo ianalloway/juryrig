@@ -348,6 +348,10 @@ Item ranking metrics:
 - **`entropy`** — Shannon entropy (bits) of discretized scores (same bucketing
   as Cohen's κ in the agreement matrix)
 
+Ties are broken deterministically: items by ranking score descending then
+item index ascending; clusters by size descending then split-pair signature
+lexicographically.
+
 `atlas.to_dict()` is JSON-serializable. From the CLI:
 
 ```bash
