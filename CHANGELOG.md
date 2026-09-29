@@ -5,7 +5,11 @@ Notable changes to juryrig. Format loosely follows
 
 ## [Unreleased]
 
-## [0.2.2] - 2026-09-20
+## [0.3.0] - 2026-09-29
+
+The agreement matrix is a new public API and CLI mode, so this ships as a
+minor bump. It supersedes the `0.2.2` version string staged on `main`, which
+was never tagged or published to PyPI.
 
 ### Added
 
@@ -17,6 +21,11 @@ Notable changes to juryrig. Format loosely follows
 - `juryrig agree cases.json` CLI mode — builds MockJudge seed variants (or
   named slots for a live provider), prints the matrix, exits `1` when any
   pair is flagged. Case files may set `"agreement_thresholds"`.
+
+### Changed
+
+- Build backend requirement raised to `setuptools>=84.0.0` in
+  `[build-system]` (#26). Only affects building from source / sdist.
 
 ## [0.2.1] - 2026-09-14
 
