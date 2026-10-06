@@ -23,7 +23,7 @@ the thing under test:
 - **Self-consistency** — same input, several runs; how stable is the score?
 - **Panels** — pool several judges (mean / median / min) and get an agreement score, so you know when your verdict depends on which judge you picked. Pairwise panels vote on A/B pairs and report a dead heat as one.
 - **Agreement matrix** — score the same items with N judges (or prompt variants) and print pairwise exact / within-ε rates plus Cohen's κ — a concordance audit for the panel you are about to trust.
-- **Disagreement atlas** — given that same multi-judge score grid, rank items by variance / pairwise split / categorical entropy, cluster by which judge pairs diverge, and report per-judge contrarian rates.
+- **Disagreement atlas (development only)** — rank items by variance / pairwise split / categorical entropy, cluster by which judge pairs diverge, and report per-judge contrarian rates. See [development setup](#development-checkout-unreleased-atlas).
 - **Calibration** — Brier score, reliability tables, and expected calibration error against human labels.
 
 Run the whole battery with `audit_suite()`, or from the command line with
@@ -31,9 +31,39 @@ Run the whole battery with `audit_suite()`, or from the command line with
 
 ## Install
 
+### Stable release (0.3.0)
+
 ```bash
-pip install juryrig
+python -m pip install "juryrig==0.3.0"
 ```
+
+The quickstart, audits, panels, calibration, and `juryrig agree` examples
+below work with **0.3.0**. The `disagreement_atlas` API and `juryrig atlas`
+command are **unreleased** and require the development checkout described
+below; they are not available in the published 0.3.0 package.
+
+| Capability | PyPI 0.3.0 | Development (`main`) |
+|---|---|---|
+| Audits, panels, calibration, provider adapters | Available | Available |
+| `agreement_matrix()` / `juryrig agree` | Available | Available |
+| `disagreement_atlas()` / `juryrig atlas` | Not available | Unreleased |
+
+### Development checkout (unreleased atlas)
+
+Use a separate virtual environment for development. From a source checkout:
+
+```bash
+git clone https://github.com/ianalloway/juryrig.git
+cd juryrig
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m pip install -e .
+juryrig atlas examples/cases.json --seeds 0,1,2
+```
+
+`main` can change before the next release. Its package version still reads
+`0.3.0`, so the version string alone does not identify atlas support. See the
+[Unreleased changelog](CHANGELOG.md#unreleased) for development-only features.
 
 Requires Python 3.10+. Package page: [pypi.org/project/juryrig](https://pypi.org/project/juryrig/).
 Source: [github.com/ianalloway/juryrig](https://github.com/ianalloway/juryrig).
@@ -46,14 +76,17 @@ from juryrig import (
     Panel,
     position_bias,
     prompt_injection_bias,
-    verbosity_bias,
 )
 
-rubric = "Answer must mention photosynthesis, chlorophyll, sunlight, and energy."
+rubric = "photosynthesis chlorophyll sunlight energy"
 
 # 1. Audit a judge before using it
 judge = MockJudge(name="demo")    # swap in your own judge for real audits
-cases = [("How do plants make food?", "good answer...", "weak answer...")]
+cases = [(
+    "How do plants make food?",
+    "Plants use photosynthesis: chlorophyll captures sunlight energy.",
+    "Plants eat soil.",
+)]
 
 bias = position_bias(judge, cases, rubric)
 print(f"flip rate: {bias.flip_rate:.0%}  flagged: {bias.flagged}")
@@ -64,7 +97,7 @@ print(f"injection lift: {injection.mean_delta:+.3f}  flagged: {injection.flagged
 # 2. Use a panel instead of a single judge
 panel = Panel([MockJudge(name="primary"), MockJudge(name="baseline")])
 report = panel.evaluate(prompt="How do plants make food?",
-                        response="Photosynthesis converts sunlight...",
+                        response=cases[0][1],
                         rubric=rubric)
 print(report.pooled, report.agreement)
 ```
@@ -75,6 +108,7 @@ without API credentials.
 
 ## The whole battery in one call
 
+Continuing with `cases` and `rubric` from the quickstart,
 `audit_suite()` runs every audit and pools the verdicts. Each case is a
 `(prompt, good_response, weak_response)` triple: the pair drives the position
 comparison, the good response gets padded to detect verbosity bias, and the
@@ -166,24 +200,40 @@ still explains its own verdict. A case file can set them too, under a
 `"thresholds"` key; unknown keys are rejected rather than ignored, so a typo
 can't silently leave the strict default in force.
 
-## Command line
+## Command line (stable 0.3.0)
+
+Save this as `cases.json` in your working directory. For a larger case file,
+see [`examples/cases.json`](examples/cases.json) in the source checkout:
+
+```json
+{
+  "rubric": "photosynthesis chlorophyll sunlight energy",
+  "cases": [
+    {
+      "prompt": "How do plants make food?",
+      "good": "Plants use photosynthesis: chlorophyll captures sunlight energy.",
+      "weak": "Plants eat soil."
+    }
+  ]
+}
+```
 
 ```bash
-juryrig examples/cases.json                       # audit the built-in MockJudge
-juryrig cases.json --provider anthropic --json    # audit a live judge
+juryrig cases.json                               # audit the built-in MockJudge
 juryrig agree cases.json --seeds 0,1,2            # pairwise concordance matrix
-juryrig atlas cases.json --seeds 0,1,2            # disagreement atlas
+juryrig agree cases.json --seeds 0,1,2 --json      # export the score grid
 ```
+
+To audit a live provider instead, set its API key and run
+`juryrig cases.json --provider anthropic --json` (makes billable API calls).
 
 The case file is `{"rubric": ..., "cases": [{"prompt", "good", "weak"}, ...]}`.
 The command exits `1` when the judge is flagged and `2` on bad input, so a CI
-step is one line. Without installing, use `python -m juryrig cases.json`.
+step is one line. The equivalent module entry point is `python -m juryrig cases.json`
+(after installation, or from the repository root).
 `juryrig agree` scores each case's `good` response with every judge slot and
 prints an ASCII (or `--fmt markdown`) concordance matrix; `--json` emits the
 full nested structure including exact / within-ε / κ matrices.
-`juryrig atlas` reuses that score grid to rank disagreeing items, cluster by
-splitting judge pairs, and print contrarian rates (`--json` / `--fmt markdown`
-to export).
 
 ### Optional: provider-backed judges
 
@@ -294,6 +344,7 @@ judge and reports pairwise exact match, within-ε rates, and Cohen's κ
 ```python
 from juryrig import MockJudge, agreement_matrix
 
+rubric = "photosynthesis chlorophyll sunlight energy"
 report = agreement_matrix(
     [MockJudge(name="primary", seed=0), MockJudge(name="shadow", seed=1)],
     [("How do plants make food?", "Photosynthesis converts sunlight...")],
@@ -309,7 +360,11 @@ assert not report.flagged, report.failures
 (or prompt variants) when you want concordance across prompt wording rather
 than across models.
 
-## Disagreement atlas
+## Disagreement atlas (development only)
+
+**Not included in PyPI 0.3.0.** First follow the
+[development checkout instructions](#development-checkout-unreleased-atlas).
+The following API and CLI examples require that checkout.
 
 The agreement matrix answers *whether* judges agree. The disagreement atlas
 answers *where* they don't — which items drive the split, which judge pairs
@@ -321,6 +376,7 @@ It builds on an `AgreementMatrixReport` (no re-scoring) or accepts the same
 ```python
 from juryrig import MockJudge, agreement_matrix, disagreement_atlas
 
+rubric = "photosynthesis chlorophyll sunlight energy"
 judges = [
     MockJudge(name="primary", seed=0),
     MockJudge(name="shadow", seed=1),
@@ -361,9 +417,15 @@ juryrig atlas cases.json --seeds 0,1,2 --json
 
 ## Demo
 
+From a source checkout, after installing it with `python -m pip install -e .`:
+
 ```bash
-python3 examples/audit_demo.py
+python examples/audit_demo.py
 ```
+
+For the stable source demo, check out the [`v0.3.0` tag](https://github.com/ianalloway/juryrig/tree/v0.3.0)
+in a separate checkout before installing it. The example file is not installed
+as a command by the PyPI wheel.
 
 Runs the full audit suite against a fair judge and a rigged one, no API keys
 required.
@@ -377,7 +439,7 @@ PyPI 0.3.0; its optional atlas output requires the development checkout.
 
 - **Zero runtime dependencies** — stdlib only, including the API clients.
 - **Provider-agnostic** — a judge is anything with a `judge()` method; pairwise judges add `compare()`. Protocols, not base classes.
-- **Deterministic tests** — all randomness is hash-seeded; CI never flakes.
+- **Deterministic fixtures** — mock scores use seeded inputs, so audits can be tested without network calls or API keys.
 - **Typed** — ships a PEP 561 `py.typed` marker, so the hints reach your type checker.
 
 ## License
