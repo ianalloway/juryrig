@@ -430,6 +430,11 @@ as a command by the PyPI wheel.
 Runs the full audit suite against a fair judge and a rigged one, no API keys
 required.
 
+For a broader reproducible comparison, run the [synthetic evaluation lab](examples/EVALUATION.md):
+12 scenarios, five controlled judge configurations, bias and agreement reports,
+and explicit keyword-scoring failure cases. The base experiment works with
+PyPI 0.3.0; its optional atlas output requires the development checkout.
+
 ## Design notes
 
 - **Zero runtime dependencies** — stdlib only, including the API clients.

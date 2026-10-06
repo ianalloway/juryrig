@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "provenance": {
+    "status": "AI-authored synthetic demonstration fixtures",
+    "source": "Created for this repository example; no external dataset, user records, model outputs, or human annotators.",
+    "labels": "candidate and weak are construction roles, not independently validated human quality labels. No calibration labels are supplied.",
+    "purpose": "Expose configured MockJudge failure modes and keyword-scoring blind spots; not a benchmark of deployed LLMs."
+  },
+  "groups": [
+    {
+      "id": "support",
+      "mock_rubric": "receipt window original escalation",
+      "semantic_rubric": "Explain the fictional returns policy: verify a receipt, check the 30-day window, refund to the original payment method, and escalate exceptions. Do not invent an approval.",
+      "cases": [
+        {
+          "id": "return-14",
+          "prompt": "A customer returns an unused item after 14 days with proof of purchase. What should support do?",
+          "candidate": "Check the receipt and window before refunding the original payment method.",
+          "weak": "Approve any refund immediately."
+        },
+        {
+          "id": "return-45",
+          "prompt": "A customer asks for a return after 45 days. What should support do?",
+          "candidate": "The window has passed. Check the receipt and request escalation for an exception.",
+          "weak": "The customer is always eligible."
+        },
+        {
+          "id": "missing-proof",
+          "prompt": "An unused item arrives without proof of purchase. What should support do?",
+          "candidate": "Request the receipt and check the window. Use escalation if proof cannot be recovered.",
+          "weak": "Send cash today."
+        },
+        {
+          "id": "changed-card",
+          "prompt": "A customer has replaced the card used for an eligible purchase. What should support do?",
+          "candidate": "Verify the receipt and original payment method. Request escalation for the changed card.",
+          "weak": "Refund to any account they provide."
+        }
+      ]
+    },
+    {
+      "id": "incident",
+      "mock_rubric": "timeline impact mitigation evidence",
+      "semantic_rubric": "Summarize only the fictional incident facts in the prompt: timeline, customer impact, mitigation, and evidence. Mark missing facts as unknown; do not claim a root cause.",
+      "cases": [
+        {
+          "id": "api-503",
+          "prompt": "At 09:10 a deploy began; at 09:12 API errors rose; a rollback at 09:20 reduced errors. Root cause is unknown.",
+          "candidate": "The timeline links the deploy and errors. Describe impact cautiously and record rollback mitigation.",
+          "weak": "The database was definitely hacked."
+        },
+        {
+          "id": "queue-delay",
+          "prompt": "Queue delay rose at 16:00; workers were increased at 16:15; no recovery measurement exists yet.",
+          "candidate": "Record the timeline and worker mitigation. Recovery needs evidence before claiming success.",
+          "weak": "Everything is fixed permanently."
+        },
+        {
+          "id": "stale-cache",
+          "prompt": "Two customers saw stale pages; the cache was cleared; onset time is not recorded.",
+          "candidate": "Record the impact and cache mitigation. The timeline has an unknown start.",
+          "weak": "All customers lost their accounts."
+        },
+        {
+          "id": "latency-alert",
+          "prompt": "An alert reports p95 latency at 900 ms; there are no customer reports or mitigation notes.",
+          "candidate": "Record the alert evidence and latency impact. The mitigation is unknown.",
+          "weak": "A restart solved the issue."
+        }
+      ]
+    },
+    {
+      "id": "research",
+      "mock_rubric": "source sample uncertainty limitations",
+      "semantic_rubric": "Summarize only the fictional study facts: source, sample, uncertainty, and limitations. Distinguish association from causation and do not generalize beyond the sample.",
+      "cases": [
+        {
+          "id": "small-survey",
+          "prompt": "An internal survey of 18 volunteers reports a preference for interface A. There is no randomized assignment.",
+          "candidate": "Name the source and sample. State uncertainty about whether the preference generalizes.",
+          "weak": "Interface A is proven best for everyone."
+        },
+        {
+          "id": "pilot-change",
+          "prompt": "A pilot team reports faster completion after a workflow change, with no control group.",
+          "candidate": "Name the source and limitations. State uncertainty about attributing the change to the workflow.",
+          "weak": "The workflow caused a universal productivity gain."
+        },
+        {
+          "id": "missing-count",
+          "prompt": "A blog post claims users like a feature but provides no participant count or study method.",
+          "candidate": "Identify the source and unknown sample. State limitations from the missing method.",
+          "weak": "The feature has statistically proven demand."
+        },
+        {
+          "id": "single-site",
+          "prompt": "A single office tests a prototype for one week; results from other offices are unavailable.",
+          "candidate": "Describe the sample and short duration limitations. Preserve uncertainty about other offices.",
+          "weak": "Roll out everywhere because success is guaranteed."
+        }
+      ]
+    }
+  ]
+}
