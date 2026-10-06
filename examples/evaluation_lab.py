@@ -52,7 +52,9 @@ def run_experiment(path: Path = DATASET, *, atlas: bool = False) -> dict:
         ]
         audits = {}
         for name in CONFIGURATIONS:
-            report = audit_suite(make_judge(name), cases, group["mock_rubric"])
+            report = audit_suite(
+                make_judge(name), cases, group["mock_rubric"], runs=5, max_workers=1
+            )
             audits[name] = {
                 "measurements": asdict(report),
                 "failures": list(report.failures),
@@ -76,7 +78,7 @@ def run_experiment(path: Path = DATASET, *, atlas: bool = False) -> dict:
         matrix = agreement_matrix(
             [make_judge(name) for name in CONFIGURATIONS],
             [(item["prompt"], item["response"]) for item in items],
-            group["mock_rubric"], epsilon=EPSILON,
+            group["mock_rubric"], epsilon=EPSILON, kappa_decimals=1, max_workers=1,
         )
         entry = {
             "id": group["id"], "mock_rubric": group["mock_rubric"],

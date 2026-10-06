@@ -32,7 +32,7 @@ python examples/evaluation_lab.py > examples/evaluation_expected.md
 Every run uses seed 0, fresh judges for each group and phase, five consistency
 runs, and serial execution. The output records the dataset SHA-256, package
 version, configuration overrides, and whether atlas was requested. JSON also
-includes thresholds, all raw scores, item IDs and responses, per-audit
+includes thresholds, all agreement scores, item IDs and responses, per-audit
 measurements, flagged/skipped audits, and pairwise agreement metrics. The script
 exits successfully when the experiment runs: deliberately biased fixtures are
 expected to be flagged, so this script is not a production CI pass/fail gate.
