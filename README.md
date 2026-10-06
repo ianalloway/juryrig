@@ -344,6 +344,7 @@ judge and reports pairwise exact match, within-ε rates, and Cohen's κ
 ```python
 from juryrig import MockJudge, agreement_matrix
 
+rubric = "photosynthesis chlorophyll sunlight energy"
 report = agreement_matrix(
     [MockJudge(name="primary", seed=0), MockJudge(name="shadow", seed=1)],
     [("How do plants make food?", "Photosynthesis converts sunlight...")],
