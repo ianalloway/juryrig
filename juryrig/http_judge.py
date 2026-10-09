@@ -11,14 +11,19 @@ Import directly — not re-exported from `juryrig` (same pattern as providers):
 
 Stdlib-only (`urllib`). Point `url` at the full `/v1/chat/completions` path
 (or whatever your server exposes). An API key is optional — many local
-servers need none; pass `api_key=` or set the env named by `api_key_env`
-(default `OPENAI_API_KEY`) when the server expects `Authorization: Bearer`.
+servers need none. When the server expects `Authorization: Bearer`, pass
+`api_key=` or name the env var to read with `api_key_env=`.
+
+`OPENAI_API_KEY` is only picked up implicitly when `url` is
+`https://api.openai.com/...`, so pointing `HttpJudge` at a local or
+third-party endpoint never sends your OpenAI key there by accident.
 """
 from __future__ import annotations
 
 import json
 import os
 from typing import Mapping
+from urllib.parse import urlsplit
 
 from .judge import Judgment, Verdict
 from .providers import (
@@ -40,6 +45,15 @@ _COMPARE_SYSTEM = (
     "against the RUBRIC. Reply with JSON only: "
     '{"winner": "A"|"B"|"tie", "reasoning": "<one sentence>"}'
 )
+
+_DEFAULT_KEY_ENV = "OPENAI_API_KEY"
+_OPENAI_HOST = "api.openai.com"
+
+
+def _is_openai_url(url: str) -> bool:
+    """True only for https://api.openai.com endpoints."""
+    parts = urlsplit(url)
+    return parts.scheme == "https" and (parts.hostname or "").lower() == _OPENAI_HOST
 
 
 def _compare_user_message(prompt: str, a: str, b: str, rubric: str) -> str:
@@ -72,6 +86,11 @@ class HttpJudge:
     full `audit_suite()` — including position bias — can run against a real
     model without MockJudge. Retries use the same `RetryPolicy` as the
     built-in provider judges.
+
+    Auth: an explicit `api_key=` is always sent. Otherwise, if you name an
+    env var with `api_key_env=`, its value is sent to `url`. With neither,
+    `OPENAI_API_KEY` is used only when `url` is `https://api.openai.com/...`;
+    any other endpoint gets no `Authorization` header.
     """
 
     def __init__(
@@ -81,7 +100,7 @@ class HttpJudge:
         *,
         name: str | None = None,
         api_key: str | None = None,
-        api_key_env: str = "OPENAI_API_KEY",
+        api_key_env: str | None = None,
         headers: Mapping[str, str] | None = None,
         temperature: float = 0.0,
         timeout: float = 60.0,
@@ -104,8 +123,14 @@ class HttpJudge:
     def _auth_headers(self) -> dict[str, str]:
         if self.api_key is not None:
             key = self.api_key
-        else:
+        elif self.api_key_env is not None:
+            # Caller explicitly chose which env var to send to this URL.
             key = os.environ.get(self.api_key_env)
+        elif _is_openai_url(self.url):
+            key = os.environ.get(_DEFAULT_KEY_ENV)
+        else:
+            # Never forward OPENAI_API_KEY to an arbitrary endpoint by default.
+            key = None
         headers = dict(self.extra_headers)
         if key:
             headers.setdefault("Authorization", f"Bearer {key}")
