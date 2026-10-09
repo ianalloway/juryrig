@@ -137,11 +137,28 @@ class HttpJudgeMockedHttpTest(unittest.TestCase):
 
         self.assertIsNone(self.captured[0].get_header("Authorization"))
 
-    def test_api_key_from_env_when_not_passed(self):
+    def test_openai_env_key_not_sent_to_other_hosts(self):
+        urls = (
+            "http://local/v1/chat/completions",
+            "https://attacker.example/v1/chat/completions",
+            "https://api.openai.com.evil.test/v1/chat/completions",
+            "http://api.openai.com/v1/chat/completions",  # not https
+        )
+        self._install(*[chat_payload('{"score": 0.1, "reasoning": "x"}')] * len(urls))
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "from-env"}):
+            for url in urls:
+                judge = HttpJudge(url=url, model="m", retry=RetryPolicy(attempts=1))
+                judge.judge(prompt="p", response="r", rubric="rub")
+
+        for req in self.captured:
+            with self.subTest(url=req.full_url):
+                self.assertIsNone(req.get_header("Authorization"))
+
+    def test_openai_env_key_sent_to_api_openai_com(self):
         self._install(chat_payload('{"score": 0.1, "reasoning": "x"}'))
         with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "from-env"}):
             judge = HttpJudge(
-                url="http://local/v1/chat/completions",
+                url="https://api.openai.com/v1/chat/completions",
                 model="m",
                 retry=RetryPolicy(attempts=1),
             )
@@ -150,6 +167,19 @@ class HttpJudgeMockedHttpTest(unittest.TestCase):
         self.assertEqual(
             self.captured[0].get_header("Authorization"), "Bearer from-env"
         )
+
+    def test_explicit_api_key_env_is_sent_to_any_host(self):
+        self._install(chat_payload('{"score": 0.1, "reasoning": "x"}'))
+        with mock.patch.dict(os.environ, {"GATEWAY_KEY": "gw-key"}):
+            judge = HttpJudge(
+                url="http://local/v1/chat/completions",
+                model="m",
+                api_key_env="GATEWAY_KEY",
+                retry=RetryPolicy(attempts=1),
+            )
+            judge.judge(prompt="p", response="r", rubric="rub")
+
+        self.assertEqual(self.captured[0].get_header("Authorization"), "Bearer gw-key")
 
     def test_custom_headers_merge(self):
         self._install(chat_payload('{"score": 0.2, "reasoning": "x"}'))

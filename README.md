@@ -272,7 +272,7 @@ from juryrig import audit_suite
 judge = HttpJudge(
     url="http://127.0.0.1:11434/v1/chat/completions",  # full endpoint URL
     model="llama3.2",
-    # api_key="…"                 # optional; or set OPENAI_API_KEY
+    # api_key="…"                 # optional; or api_key_env="MY_GATEWAY_KEY"
     # headers={"X-Tenant": "dev"} # optional extra headers
 )
 
@@ -284,7 +284,9 @@ print(report.summary())
 
 Point `url` at the full chat-completions path your server exposes. An API
 key is optional (many local servers need none). When one is required, pass
-`api_key=` or set the env named by `api_key_env` (default `OPENAI_API_KEY`).
+`api_key=` or name the env var to read with `api_key_env=`. `OPENAI_API_KEY`
+is only picked up automatically when `url` is `https://api.openai.com/...`, so
+your OpenAI key is never sent to a local or third-party endpoint by default.
 Retries use the same `RetryPolicy` as the provider judges.
 
 Every audit returns a small frozen dataclass with a `flagged` property, so

@@ -5,6 +5,17 @@ Notable changes to juryrig. Format loosely follows
 
 ## [Unreleased]
 
+### Security
+
+- `HttpJudge` no longer forwards `OPENAI_API_KEY` to arbitrary endpoints.
+  Previously, with no `api_key=`, it read `OPENAI_API_KEY` and sent it as a
+  Bearer token to whatever `url` it was given (a local server, a gateway, or
+  a hostile host). The env key is now attached implicitly only for
+  `https://api.openai.com`. An explicit `api_key=` or `api_key_env=` still
+  works for any host. **Behaviour change:** if you relied on the implicit
+  `OPENAI_API_KEY` for a non-OpenAI endpoint, pass
+  `api_key_env="OPENAI_API_KEY"` (or `api_key=`) explicitly.
+
 ### Added
 
 - **Disagreement atlas** — `disagreement_atlas()` / `disagreement_atlas_from_report()`
