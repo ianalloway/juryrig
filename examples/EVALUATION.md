@@ -14,12 +14,12 @@ virtual environment and run the script:
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
-python -m pip install "juryrig==0.3.0"
+python -m pip install "juryrig==0.3.1"
 python examples/evaluation_lab.py
 python examples/evaluation_lab.py --format json > evaluation.json
 ```
 
-The default experiment uses only the **stable 0.3.0 APIs**. The script does not
+The default experiment uses only the **stable 0.3.1 APIs**. The script does not
 insert the checkout into `sys.path`, so the commands above exercise the installed
 package. Avoid setting `PYTHONPATH` when checking the stable wheel.
 
@@ -99,19 +99,17 @@ so repeated measurements across groups are not independent replications.
 
 ## Optional: inspect the disagreement atlas
 
-Atlas is **unreleased and unavailable in PyPI 0.3.0**. In a separate environment,
-install a development checkout that includes atlas, then run:
+Atlas ships in **juryrig 0.3.1**, so the environment installed above already
+has it (0.3.0 does not). Run:
 
 ```bash
-python -m pip install -e .
 python examples/evaluation_lab.py --atlas
 python examples/evaluation_lab.py --atlas --format json > evaluation-atlas.json
 ```
 
 Markdown adds the five highest-variance items in each group. JSON includes the
 full ranking, score splits, clusters, and contrarian rates. Atlas reuses the
-agreement score grid without new judge calls. Development currently also reports
-version `0.3.0`; the version string alone does not prove atlas is installed.
+agreement score grid without new judge calls. It needs `juryrig>=0.3.1`.
 
 ## Optional: adapt to a real judge later
 
