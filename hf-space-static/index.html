@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>juryrig: audit your LLM judge</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.js"></script>
+</head>
+<body>
+<h1>⚖️ juryrig: audit your LLM judge before you trust it</h1>
+<p>Paste the verdicts/scores your LLM judge already produced and check them for <b>position bias</b>, <b>verbosity bias</b>,
+<b>calibration</b> and <b>cross-judge agreement</b>, using the real <a href="https://pypi.org/project/juryrig/" target="_blank" rel="noopener">juryrig</a>
+audit functions running in your browser with <a href="https://pyodide.org" target="_blank" rel="noopener">Pyodide</a>.
+<b>Offline, zero keys:</b> your data never leaves this tab and no judge API is called.
+<a href="https://github.com/ianalloway/juryrig" target="_blank" rel="noopener">GitHub</a> · <code>pip install juryrig</code></p>
+<div id="status">Starting…</div>
+<nav>
+  <button class="active" data-tab="demo">▶ One-click demo</button>
+  <button data-tab="position">🔀 Position bias</button>
+  <button data-tab="verbosity">📏 Verbosity bias</button>
+  <button data-tab="calibration">🎯 Calibration</button>
+  <button data-tab="agreement">🤝 Judge agreement</button>
+  <button data-tab="about">ℹ About</button>
+</nav>
+<main>
+<section id="demo">
+  <p>Runs juryrig's full <code>audit_suite</code> against five built-in <b>mock judges</b>, each with a deliberate flaw, so you can see what a flagged audit looks like. No input needed.</p>
+  <div class="row"><button id="d-btn" class="primary" disabled>Run the audits</button></div>
+  <div class="error"></div>
+  <div id="d-tbl"></div>
+  <details id="d-box" hidden><summary>Full text reports</summary><pre id="d-txt"></pre></details>
+</section>
+<section id="position" hidden>
+  <div class="help"><p><b>Input (CSV with header, or a JSON list of objects).</b> One row per pair of responses you showed the judge <b>twice</b>, once in each order:</p>
+<table><tr><th>column</th><th>meaning</th></tr><tr><td><code>case_id</code></td><td>optional label (unique)</td></tr><tr><td><code>verdict_original</code></td><td>what the judge said with response X in slot A and Y in slot B: <code>A</code>, <code>B</code> or <code>tie</code></td></tr><tr><td><code>verdict_swapped</code></td><td>what it said with the slots swapped (Y in A, X in B): <code>A</code>, <code>B</code> or <code>tie</code></td></tr><tr><td><code>len_first</code>, <code>len_second</code></td><td><i>optional</i>: lengths of X and Y (any unit) for an extra "does the longer answer win?" stat</td></tr></table>
+<p>Verdicts are the judge's literal slot answer. A fair judge's two verdicts are opposite (<code>A</code>→<code>B</code>).</p></div>
+  <label>Pairwise verdicts (CSV or JSON)<textarea id="p-in" rows="10" spellcheck="false"></textarea></label>
+  <div class="row"><button class="secondary" data-example="#p-in">Load example</button><label>Flag if flip rate &gt;<input id="p-flip" type="number" value="0.2" min="0" max="1" step="0.05"></label><label>Flag if |first-slot share − 50%| &gt;<input id="p-skew" type="number" value="0.2" min="0" max="0.5" step="0.05"></label></div>
+  <div class="row"><button id="p-btn" class="primary" disabled>Audit position bias</button></div>
+  <div class="error"></div>
+  <div id="p-head"></div><div id="p-tbl"></div>
+</section>
+<section id="verbosity" hidden>
+  <div class="help"><p><b>Input (CSV or JSON).</b> One row per response: <code>case_id</code> (optional), <code>score_original</code> (judge score for the response), <code>score_padded</code> (judge score for the same response with content-free filler appended). Set <i>Score scale max</i> if your scores are not 0–1 (e.g. <code>10</code> for a 1–10 scale).</p></div>
+  <label>Original vs padded scores (CSV or JSON)<textarea id="v-in" rows="8" spellcheck="false"></textarea></label>
+  <div class="row"><button class="secondary" data-example="#v-in">Load example</button><label>Score scale max<input id="v-scale" type="number" value="1" min="0.0001" max="1000000000.0" step="any"></label><label>Flag if mean lift &gt;<input id="v-mean" type="number" value="0.05" min="0" max="0.5" step="0.01"></label><label>Flag if max lift &gt;<input id="v-max" type="number" value="0.15" min="0" max="1" step="0.01"></label></div>
+  <div class="row"><button id="v-btn" class="primary" disabled>Audit verbosity bias</button></div>
+  <div class="error"></div>
+  <div id="v-head"></div><div id="v-tbl"></div>
+</section>
+<section id="calibration" hidden>
+  <div class="help"><p><b>Input (CSV or JSON).</b> One row per judgment: <code>score</code> (judge confidence/score in 0–1) and <code>label</code> (<code>1</code> if the human label says the response was good/correct, else <code>0</code>).</p></div>
+  <label>Scores and human labels (CSV or JSON)<textarea id="c-in" rows="8" spellcheck="false"></textarea></label>
+  <div class="row"><button class="secondary" data-example="#c-in">Load example</button><label>Bins<input id="c-bins" type="number" value="5" min="2" max="20" step="1"></label></div>
+  <div class="row"><button id="c-btn" class="primary" disabled>Check calibration</button></div>
+  <div class="error"></div>
+  <div id="c-head"></div><div id="c-tbl"></div>
+</section>
+<section id="agreement" hidden>
+  <div class="help"><p><b>Input (CSV or JSON).</b> One row per item: optional <code>case_id</code>, then one column <b>per judge</b> (column name = judge name) with that judge's score for the item. At least two judges. The agreement matrix uses juryrig's within-ε rate and Cohen's κ.</p></div>
+  <label>Scores per judge (CSV or JSON)<textarea id="a-in" rows="9" spellcheck="false"></textarea></label>
+  <div class="row"><button class="secondary" data-example="#a-in">Load example</button><label>Score scale max<input id="a-scale" type="number" value="1" min="0.0001" max="1000000000.0" step="any"></label><label>ε (scores within ε count as agreeing)<input id="a-eps" type="number" value="0.05" min="0" max="0.5" step="0.01"></label></div>
+  <div class="row"><button id="a-btn" class="primary" disabled>Compare judges</button></div>
+  <div class="error"></div>
+  <div id="a-head"></div><div id="a-tbl"></div>
+</section>
+<section id="about" hidden>
+  <ul>
+    <li><b>What runs here?</b> juryrig's real audit code (v0.3.0 from PyPI), replaying the outputs you paste, inside this browser tab. Live audits that call a judge model (OpenAI, Anthropic, any HTTP endpoint) are available in the library and CLI (<code>juryrig cases.json</code>) but need your own keys, so they are not part of this Space.</li>
+    <li><b>Privacy:</b> the page only downloads Pyodide (jsDelivr CDN) and the juryrig wheel (PyPI). Pasted data is processed locally and never uploaded.</li>
+    <li><b>Limits:</b> a flagged audit means the <i>evidence you pasted</i> shows bias at the chosen thresholds; with few cases the numbers are noisy. Defaults are deliberately strict.</li>
+    <li>The disagreement atlas appears automatically once a juryrig release after 0.3.0 ships it.</li>
+  </ul>
+</section>
+</main>
+<footer>MIT licensed. Code: <a href="https://github.com/ianalloway/juryrig" target="_blank" rel="noopener">github.com/ianalloway/juryrig</a> · PyPI: <a href="https://pypi.org/project/juryrig/" target="_blank" rel="noopener">juryrig</a></footer>
+<script src="app.js"></script>
+</body>
+</html>
