@@ -5,6 +5,12 @@ Notable changes to juryrig. Format loosely follows
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-12
+
+Security release for the `HttpJudge` key leak (#31). It also ships everything
+merged to `main` since 0.3.0: the disagreement atlas (#28), docs (#29), the
+evaluation lab (#30) and the Hugging Face Space demos (#32, #33).
+
 ### Security
 
 - `HttpJudge` no longer forwards `OPENAI_API_KEY` to arbitrary endpoints.
@@ -30,6 +36,14 @@ Notable changes to juryrig. Format loosely follows
 - `juryrig atlas cases.json` CLI mode — same judge slots as `agree`, prints a
   readable ranking / cluster / contrarian table; `--json` and `--fmt markdown`
   export the atlas.
+
+### Examples and demos
+
+- Reproducible synthetic judge evaluation lab under `examples/` (#30).
+- Hugging Face Space demos: a Gradio app in `hf-space/` (#32) and a free static
+  Pyodide build in `hf-space-static/` (#33) that audits pasted judge outputs for
+  position and verbosity bias. Live at
+  https://huggingface.co/spaces/ianalloway/juryrig-judge-audit.
 
 ## [0.3.0] - 2026-09-29
 
