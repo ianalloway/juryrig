@@ -4,7 +4,7 @@ Controlled MockJudge configurations; no real models or human labels.
 These measurements describe the configured fixtures, not model quality.
 
 Dataset SHA-256: `9a5af4707456b05e71b4e0a1ad2605523dca7735dd376e54a5c6df3aa285ff5c`
-Package version: `0.3.0`; atlas requested: `False`.
+Package version: `0.3.1`; atlas requested: `False`.
 Seed 0; five consistency runs; serial execution; ε=0.05; κ buckets rounded to one decimal.
 
 Configuration overrides (all other MockJudge defaults unchanged):
