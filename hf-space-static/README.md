@@ -36,7 +36,7 @@ the library and CLI with your own keys.
 | Position bias | `position_bias` | verdicts for each pair in both orders |
 | Verbosity bias | `verbosity_bias` | scores before and after padding |
 | Calibration | `brier_score`, `expected_calibration_error`, `reliability_table` | scores + 0/1 human labels |
-| Judge agreement | `agreement_matrix` (+ `disagreement_atlas_from_report` when the installed juryrig has it) | one score column per judge |
+| Judge agreement | `agreement_matrix` + `disagreement_atlas_from_report` (new in 0.3.1) | one score column per judge |
 
 Every tab has a **Load example** button and a format description. Inputs can be CSV with a header or a JSON list of objects.
 
@@ -77,14 +77,14 @@ q1,0.90,0.85
 
 - `index.html` + `app.js` + `style.css`: plain static page, no build step.
 - On load it fetches [Pyodide](https://pyodide.org) (CPython compiled to WebAssembly) from the official jsDelivr CDN,
-  then installs the pure-Python `juryrig` wheel from PyPI with `micropip` (pinned: `juryrig==0.3.0`).
+  then installs the pure-Python `juryrig` wheel from PyPI with `micropip` (pinned: `juryrig==0.3.1`).
 - `space.py` holds the same logic as the Gradio version in [`../hf-space/app.py`](../hf-space/app.py), with the gradio UI
   removed; `app.js` calls it through a tiny JSON bridge and renders the results.
 - Network: only Pyodide assets (`cdn.jsdelivr.net`) and the wheel (`pypi.org`, `files.pythonhosted.org`). No keys, no server,
   and nothing you type is uploaded. First visit downloads Pyodide (several MB, cached by the browser afterwards).
 
-**Offline wheel (optional fallback):** if PyPI is unreachable, `app.js` tries `wheels/juryrig-0.3.0-py3-none-any.whl` next to `index.html`.
-Drop that file from `pip download juryrig==0.3.0 --no-deps -d wheels` into a `wheels/` folder to use it.
+**Offline wheel (optional fallback):** if PyPI is unreachable, `app.js` tries `wheels/juryrig-0.3.1-py3-none-any.whl` next to `index.html`.
+Drop that file from `pip download juryrig==0.3.1 --no-deps -d wheels` into a `wheels/` folder to use it.
 
 ## Run locally
 

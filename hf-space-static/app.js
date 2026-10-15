@@ -132,6 +132,6 @@ wire("#a-btn", () => {
   $("#a-head").innerHTML = md(head);
   $("#a-tbl").innerHTML = table(["Pair", "Within ε", "Cohen's κ", "Mean |Δ|", "Verdict"], rows) + md(atlas);
 });
-boot("juryrig==0.3.0", "juryrig-0.3.0-py3-none-any.whl")
+boot("juryrig==0.3.1", "juryrig-0.3.1-py3-none-any.whl")
   .then(() => Object.keys(examples).forEach((sel) => ($(sel).value = py.globals.get("space")[examples[sel]])))
   .catch((e) => status("Failed to load Python: " + e.message, "err"));
