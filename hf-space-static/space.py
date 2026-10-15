@@ -21,17 +21,13 @@ from juryrig import (
     agreement_matrix,
     audit_suite,
     brier_score,
+    disagreement_atlas_from_report,  # ships in juryrig 0.3.1
     expected_calibration_error,
     position_bias,
     reliability_table,
     verbosity_bias,
 )
 from juryrig.judge import Judgment
-
-try:  # the disagreement atlas ships after juryrig 0.3.0; use it when installed
-    from juryrig import disagreement_atlas_from_report
-except ImportError:  # pragma: no cover - depends on installed version
-    disagreement_atlas_from_report = None
 
 MAX_CHARS = 1_000_000
 MAX_ROWS = 5_000
@@ -334,7 +330,7 @@ def on_calibration(text, bins):
 
 
 # --------------------------------------------------------------------------
-# 4) Agreement (+ disagreement atlas when the installed juryrig has it)
+# 4) Agreement + disagreement atlas
 # --------------------------------------------------------------------------
 def analyze_agreement(text: str, scale_max: float = 1.0, epsilon: float = 0.05):
     if not scale_max or scale_max <= 0:
@@ -352,7 +348,7 @@ def analyze_agreement(text: str, scale_max: float = 1.0, epsilon: float = 0.05):
                   for i, (k, r) in enumerate(zip(keys, rows), start=1)}
         recorded.append(RecordedScoreJudge(j, scores))
     report = agreement_matrix(recorded, [(k, k) for k in keys], RUBRIC, epsilon=float(epsilon))
-    atlas = disagreement_atlas_from_report(report) if disagreement_atlas_from_report else None
+    atlas = disagreement_atlas_from_report(report)
     return report, atlas, ids
 
 
@@ -363,17 +359,19 @@ def on_agreement(text, scale_max, epsilon):
     head = (f"### Judge agreement: {ok(report.flagged)}\n\n"
             f"{report.cases} items, {len(report.judges)} judges, ε = {report.epsilon:g}. "
             "High agreement on average can hide pairs that rarely agree: the verdict then depends on which judge you picked.")
-    if atlas is None:
-        atlas_md = ("*Disagreement atlas not available in the installed juryrig version "
-                    f"({juryrig.__version__}); it appears in the release after 0.3.0.*")
-    else:
+    if atlas is not None:
         top = [[ids[i.index], f"{i.variance:.3f}", f"{i.pairwise_disagreement:.0%}", ", ".join(sp.replace("|", " × ") for sp in i.split_pairs) or "—"]
                for i in atlas.items[:10]]
         contrarian = ", ".join(f"{c.judge} {c.rate:.0%}" for c in atlas.contrarian)
         atlas_md = ("#### Disagreement atlas: where the panel splits\n\n"
                     + "| item | score variance | pairs beyond ε | splitting pairs |\n|---|---:|---:|---|\n"
                     + "\n".join(f"| {a} | {b} | {c} | {d} |" for a, b, c, d in top)
-                    + f"\n\nContrarian rate vs. panel median: {contrarian}")
+                    + f"\n\nContrarian rate vs. panel median: {contrarian}"
+                    + (("\n\nSplit clusters (items that split the same judge pairs): "
+                        + "; ".join(f"{' & '.join(sp.replace('|', ' × ') for sp in c.split_pairs)}: "
+                                    f"{', '.join(str(ids[k]) for k in c.item_indices)}"
+                                    for c in atlas.clusters if c.split_pairs))
+                       if any(c.split_pairs for c in atlas.clusters) else ""))
     return head, pairs, atlas_md
 
 
