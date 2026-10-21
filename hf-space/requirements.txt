@@ -1,1 +1,1 @@
-juryrig>=0.3.0
+juryrig>=0.3.1
