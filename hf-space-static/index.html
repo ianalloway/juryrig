@@ -58,7 +58,7 @@ audit functions running in your browser with <a href="https://pyodide.org" targe
   <div id="c-head"></div><div id="c-tbl"></div>
 </section>
 <section id="agreement" hidden>
-  <div class="help"><p><b>Input (CSV or JSON).</b> One row per item: optional <code>case_id</code>, then one column <b>per judge</b> (column name = judge name) with that judge's score for the item. At least two judges. The agreement matrix uses juryrig's within-ε rate and Cohen's κ.</p></div>
+  <div class="help"><p><b>Input (CSV or JSON).</b> One row per item: optional <code>case_id</code>, then one column <b>per judge</b> (column name = judge name) with that judge's score for the item. At least two judges. The agreement matrix uses juryrig's within-ε rate and Cohen's κ; the disagreement atlas below it shows <i>which</i> items split the panel.</p></div>
   <label>Scores per judge (CSV or JSON)<textarea id="a-in" rows="9" spellcheck="false"></textarea></label>
   <div class="row"><button class="secondary" data-example="#a-in">Load example</button><label>Score scale max<input id="a-scale" type="number" value="1" min="0.0001" max="1000000000.0" step="any"></label><label>ε (scores within ε count as agreeing)<input id="a-eps" type="number" value="0.05" min="0" max="0.5" step="0.01"></label></div>
   <div class="row"><button id="a-btn" class="primary" disabled>Compare judges</button></div>
@@ -67,10 +67,10 @@ audit functions running in your browser with <a href="https://pyodide.org" targe
 </section>
 <section id="about" hidden>
   <ul>
-    <li><b>What runs here?</b> juryrig's real audit code (v0.3.0 from PyPI), replaying the outputs you paste, inside this browser tab. Live audits that call a judge model (OpenAI, Anthropic, any HTTP endpoint) are available in the library and CLI (<code>juryrig cases.json</code>) but need your own keys, so they are not part of this Space.</li>
+    <li><b>What runs here?</b> juryrig's real audit code (v0.3.1 from PyPI), replaying the outputs you paste, inside this browser tab. Live audits that call a judge model (OpenAI, Anthropic, any HTTP endpoint) are available in the library and CLI (<code>juryrig cases.json</code>) but need your own keys, so they are not part of this Space.</li>
     <li><b>Privacy:</b> the page only downloads Pyodide (jsDelivr CDN) and the juryrig wheel (PyPI). Pasted data is processed locally and never uploaded.</li>
     <li><b>Limits:</b> a flagged audit means the <i>evidence you pasted</i> shows bias at the chosen thresholds; with few cases the numbers are noisy. Defaults are deliberately strict.</li>
-    <li>The disagreement atlas appears automatically once a juryrig release after 0.3.0 ships it.</li>
+    <li><b>Disagreement atlas</b> (new in 0.3.1): the Judge agreement tab also ranks the items where the panel splits most, groups items that split the same judge pairs, and shows how often each judge is the contrarian.</li>
   </ul>
 </section>
 </main>
