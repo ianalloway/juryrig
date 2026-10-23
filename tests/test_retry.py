@@ -4,6 +4,7 @@ import unittest
 import urllib.error
 import urllib.request
 
+import juryrig.providers as providers
 from juryrig.providers import DEFAULT_RETRY, RetryPolicy, _http_json, _retry_after
 
 
@@ -50,8 +51,8 @@ class RetryHarness(unittest.TestCase):
     def call(self, transport, retry=None):
         """Run _http_json against a fake transport, recording sleeps."""
         slept = []
-        original = urllib.request.urlopen
-        urllib.request.urlopen = transport
+        original = providers._urlopen
+        providers._urlopen = transport
         try:
             result = _http_json(
                 "https://api.example/v1",
@@ -61,7 +62,7 @@ class RetryHarness(unittest.TestCase):
                 sleep=slept.append,
             )
         finally:
-            urllib.request.urlopen = original
+            providers._urlopen = original
         return result, slept
 
 
