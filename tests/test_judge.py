@@ -3,6 +3,7 @@ import unittest
 import urllib.error
 import urllib.request
 
+import juryrig.providers as providers
 from juryrig.providers import _first_text_block, _http_json, _parse_judgment
 
 
@@ -58,13 +59,13 @@ class HttpErrorTest(unittest.TestCase):
                 fp=io.BytesIO(b'{"error":{"message":"unknown model"}}'),
             )
 
-        original = urllib.request.urlopen
-        urllib.request.urlopen = raise_http_error
+        original = providers._urlopen
+        providers._urlopen = raise_http_error
         try:
             with self.assertRaises(RuntimeError) as caught:
                 _http_json("https://api.example/v1", {}, {})
         finally:
-            urllib.request.urlopen = original
+            providers._urlopen = original
 
         message = str(caught.exception)
         self.assertIn("400", message)
