@@ -200,6 +200,11 @@ still explains its own verdict. A case file can set them too, under a
 `"thresholds"` key; unknown keys are rejected rather than ignored, so a typo
 can't silently leave the strict default in force.
 
+Thresholds and agreement tolerances must be finite. `NaN` and infinity raise
+`ValueError` instead of silently disabling a failure check. Custom judges
+return `Judgment(score=...)` with a finite numeric score in `[0, 1]`; invalid
+scores are rejected before they can enter audit or panel reports.
+
 ## Command line (stable 0.3.0)
 
 Save this as `cases.json` in your working directory. For a larger case file,
