@@ -9,6 +9,7 @@ Zero third-party deps — Cohen's kappa is a few lines of arithmetic.
 """
 from __future__ import annotations
 
+import math
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Callable, Iterable, Sequence, TypeVar
@@ -76,7 +77,7 @@ class AgreementThresholds:
 
     def __post_init__(self) -> None:
         for name, value in vars(self).items():
-            if value < 0.0 or value > 1.0:
+            if not 0.0 <= value <= 1.0:
                 raise ValueError(
                     f"AgreementThresholds.{name} must be in [0, 1], got {value}."
                 )
@@ -280,8 +281,8 @@ def agreement_matrix(
         raise ValueError("agreement_matrix needs at least two judges.")
     if not cases:
         raise ValueError("agreement_matrix needs at least one case.")
-    if epsilon < 0.0:
-        raise ValueError("epsilon must be non-negative.")
+    if not math.isfinite(epsilon) or epsilon < 0.0:
+        raise ValueError("epsilon must be finite and non-negative.")
     if kappa_decimals < 0:
         raise ValueError("kappa_decimals must be non-negative.")
 

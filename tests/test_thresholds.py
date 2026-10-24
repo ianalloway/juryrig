@@ -2,9 +2,11 @@ import unittest
 
 from juryrig import (
     DEFAULT_THRESHOLDS,
+    AgreementThresholds,
     Judgment,
     MockJudge,
     Thresholds,
+    agreement_matrix,
     audit_suite,
     prompt_injection_bias,
     self_consistency,
@@ -58,6 +60,30 @@ class ThresholdsValidationTest(unittest.TestCase):
     def test_rejects_negative_thresholds(self):
         with self.assertRaises(ValueError):
             Thresholds(injection_mean_delta=-0.1)
+
+    def test_non_finite_thresholds_cannot_silence_audit_failures(self):
+        for field in vars(DEFAULT_THRESHOLDS):
+            for value in (float("nan"), float("inf"), -float("inf")):
+                with self.subTest(field=field, value=value):
+                    with self.assertRaises(ValueError):
+                        Thresholds(**{field: value})
+
+    def test_nan_agreement_thresholds_are_rejected(self):
+        for field in vars(AgreementThresholds()):
+            with self.subTest(field=field):
+                with self.assertRaises(ValueError):
+                    AgreementThresholds(**{field: float("nan")})
+
+    def test_non_finite_agreement_epsilon_is_rejected(self):
+        for epsilon in (float("nan"), float("inf"), -float("inf")):
+            with self.subTest(epsilon=epsilon):
+                with self.assertRaisesRegex(ValueError, "epsilon"):
+                    agreement_matrix(
+                        [MockJudge(name="one"), MockJudge(name="two")],
+                        GOOD_PAIRS,
+                        RUBRIC,
+                        epsilon=epsilon,
+                    )
 
     def test_is_frozen_and_comparable(self):
         self.assertEqual(Thresholds(), DEFAULT_THRESHOLDS)

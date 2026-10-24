@@ -4,6 +4,7 @@ Run these BEFORE trusting a judge in your eval pipeline.
 """
 from __future__ import annotations
 
+import math
 import statistics
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -49,10 +50,11 @@ class Thresholds:
     consistency_spread: float = 0.2
 
     def __post_init__(self) -> None:
-        negative = [f for f, v in vars(self).items() if v < 0]
-        if negative:
+        invalid = [f for f, v in vars(self).items() if not math.isfinite(v) or v < 0]
+        if invalid:
             raise ValueError(
-                f"Thresholds must be non-negative: {', '.join(sorted(negative))}"
+                "Thresholds must be finite and non-negative: "
+                + ", ".join(sorted(invalid))
             )
 
 
