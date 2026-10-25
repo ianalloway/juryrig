@@ -4,7 +4,24 @@ import urllib.error
 import urllib.request
 
 import juryrig.providers as providers
+from juryrig import Judgment
 from juryrig.providers import _first_text_block, _http_json, _parse_judgment
+
+
+class JudgmentValidationTest(unittest.TestCase):
+    def test_custom_judges_cannot_emit_invalid_scores(self):
+        invalid = (
+            float("nan"), float("inf"), -float("inf"), -0.1, 1.1, True, "0.8", None
+        )
+        for score in invalid:
+            with self.subTest(score=score):
+                with self.assertRaisesRegex(ValueError, "finite number"):
+                    Judgment(score=score)
+
+    def test_valid_scores_include_endpoints(self):
+        for score in (0, 0.5, 1):
+            with self.subTest(score=score):
+                self.assertEqual(Judgment(score=score).score, score)
 
 
 class ParseJudgmentTest(unittest.TestCase):

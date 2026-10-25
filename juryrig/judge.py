@@ -15,6 +15,14 @@ class Judgment:
     score: float  # 0.0 (worst) to 1.0 (best)
     reasoning: str = ""
 
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.score, bool)
+            or not isinstance(self.score, (int, float))
+            or not 0.0 <= self.score <= 1.0
+        ):
+            raise ValueError("Judgment.score must be a finite number in [0, 1].")
+
 
 @runtime_checkable
 class Judge(Protocol):
