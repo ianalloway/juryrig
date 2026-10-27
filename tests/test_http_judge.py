@@ -7,6 +7,7 @@ import unittest
 import urllib.request
 from unittest import mock
 
+import juryrig.providers as providers
 from juryrig.http_judge import HttpJudge, _parse_verdict
 from juryrig.providers import RetryPolicy
 
@@ -78,7 +79,7 @@ class HttpJudgeMockedHttpTest(unittest.TestCase):
                 raise AssertionError("unexpected extra HTTP call")
             return OkResponse(queue.pop(0))
 
-        self._patcher = mock.patch.object(urllib.request, "urlopen", fake_urlopen)
+        self._patcher = mock.patch.object(providers, "_urlopen", fake_urlopen)
         self._patcher.start()
         self.addCleanup(self._patcher.stop)
 

@@ -71,6 +71,33 @@ def _user_message(prompt: str, response: str, rubric: str) -> str:
     return f"PROMPT:\n{prompt}\n\nRESPONSE:\n{response}\n\nRUBRIC:\n{rubric}"
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse to follow redirects.
+
+    urllib copies every request header, ``Authorization`` included, onto the
+    redirected request even when it points at a different host, so a judge
+    endpoint that answers 30x could hand the API key to anyone. Judge APIs
+    have no reason to redirect a POST; surface it as an error instead.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401
+        raise urllib.error.HTTPError(
+            req.full_url,
+            code,
+            f"refusing to follow redirect to {newurl!r} (would forward credentials)",
+            headers,
+            fp,
+        )
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
+def _urlopen(request, timeout=None):
+    """Open ``request`` without following redirects (see :class:`_NoRedirect`)."""
+    return _OPENER.open(request, timeout=timeout)
+
+
 def _http_json(
     url: str,
     headers: dict,
@@ -89,7 +116,7 @@ def _http_json(
     for attempt in range(1, retry.attempts + 1):
         last = attempt == retry.attempts
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as raw:
+            with _urlopen(request, timeout=timeout) as raw:
                 return json.loads(raw.read().decode())
         except urllib.error.HTTPError as exc:
             # The API puts the useful part (bad key, unknown model, rate limit)
