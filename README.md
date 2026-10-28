@@ -362,11 +362,7 @@ assert not report.flagged, report.failures
 (or prompt variants) when you want concordance across prompt wording rather
 than across models.
 
-## Disagreement atlas (development only)
-
-**Not included in PyPI 0.3.0.** First follow the
-[development checkout instructions](#development-checkout-unreleased-atlas).
-The following API and CLI examples require that checkout.
+## Disagreement atlas
 
 The agreement matrix answers *whether* judges agree. The disagreement atlas
 answers *where* they don't — which items drive the split, which judge pairs
