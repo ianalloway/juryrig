@@ -23,7 +23,7 @@ the thing under test:
 - **Self-consistency** — same input, several runs; how stable is the score?
 - **Panels** — pool several judges (mean / median / min) and get an agreement score, so you know when your verdict depends on which judge you picked. Pairwise panels vote on A/B pairs and report a dead heat as one.
 - **Agreement matrix** — score the same items with N judges (or prompt variants) and print pairwise exact / within-ε rates plus Cohen's κ — a concordance audit for the panel you are about to trust.
-- **Disagreement atlas (development only)** — rank items by variance / pairwise split / categorical entropy, cluster by which judge pairs diverge, and report per-judge contrarian rates. See [development setup](#development-checkout-unreleased-atlas).
+- **Disagreement atlas** — rank items by variance / pairwise split / categorical entropy, cluster by which judge pairs diverge, and report per-judge contrarian rates.
 - **Calibration** — Brier score, reliability tables, and expected calibration error against human labels.
 
 Run the whole battery with `audit_suite()`, or from the command line with
@@ -31,26 +31,25 @@ Run the whole battery with `audit_suite()`, or from the command line with
 
 ## Install
 
-### Stable release (0.3.0)
+### Stable release (0.3.1)
 
 ```bash
-python -m pip install "juryrig==0.3.0"
+python -m pip install "juryrig==0.3.1"
 ```
 
-The quickstart, audits, panels, calibration, and `juryrig agree` examples
-below work with **0.3.0**. The `disagreement_atlas` API and `juryrig atlas`
-command are **unreleased** and require the development checkout described
-below; they are not available in the published 0.3.0 package.
+Or just `pip install juryrig` for the latest on PyPI. **0.3.1** includes the
+disagreement atlas (`disagreement_atlas()` / `juryrig atlas`), the agreement
+matrix, audits, panels, calibration, and the `HttpJudge` key-leak fix. See the
+[0.3.1 changelog](CHANGELOG.md#031---2026-10-12).
 
-| Capability | PyPI 0.3.0 | Development (`main`) |
-|---|---|---|
-| Audits, panels, calibration, provider adapters | Available | Available |
-| `agreement_matrix()` / `juryrig agree` | Available | Available |
-| `disagreement_atlas()` / `juryrig atlas` | Not available | Unreleased |
+| Capability | PyPI 0.3.1 |
+|---|---|
+| Audits, panels, calibration, provider adapters | Available |
+| `agreement_matrix()` / `juryrig agree` | Available |
+| `disagreement_atlas()` / `juryrig atlas` | Available |
+| `HttpJudge` OpenAI-key scoping | Available |
 
-### Development checkout (unreleased atlas)
-
-Use a separate virtual environment for development. From a source checkout:
+### Development checkout
 
 ```bash
 git clone https://github.com/ianalloway/juryrig.git
@@ -60,10 +59,6 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 python -m pip install -e .
 juryrig atlas examples/cases.json --seeds 0,1,2
 ```
-
-`main` can change before the next release. Its package version still reads
-`0.3.0`, so the version string alone does not identify atlas support. See the
-[Unreleased changelog](CHANGELOG.md#unreleased) for development-only features.
 
 Requires Python 3.10+. Package page: [pypi.org/project/juryrig](https://pypi.org/project/juryrig/).
 Source: [github.com/ianalloway/juryrig](https://github.com/ianalloway/juryrig).
@@ -205,7 +200,7 @@ Thresholds and agreement tolerances must be finite. `NaN` and infinity raise
 return `Judgment(score=...)` with a finite numeric score in `[0, 1]`; invalid
 scores are rejected before they can enter audit or panel reports.
 
-## Command line (stable 0.3.0)
+## Command line
 
 Save this as `cases.json` in your working directory. For a larger case file,
 see [`examples/cases.json`](examples/cases.json) in the source checkout:
@@ -430,7 +425,7 @@ From a source checkout, after installing it with `python -m pip install -e .`:
 python examples/audit_demo.py
 ```
 
-For the stable source demo, check out the [`v0.3.0` tag](https://github.com/ianalloway/juryrig/tree/v0.3.0)
+For a pinned source demo, check out the [`v0.3.1` tag](https://github.com/ianalloway/juryrig/tree/v0.3.1)
 in a separate checkout before installing it. The example file is not installed
 as a command by the PyPI wheel.
 
@@ -440,7 +435,7 @@ required.
 For a broader reproducible comparison, run the [synthetic evaluation lab](examples/EVALUATION.md):
 12 scenarios, five controlled judge configurations, bias and agreement reports,
 and explicit keyword-scoring failure cases. The base experiment works with
-PyPI 0.3.0; its optional atlas output requires the development checkout.
+PyPI 0.3.1 (atlas included).
 
 ## Design notes
 
