@@ -21,6 +21,11 @@ from .agreement import (
 )
 from .atlas import disagreement_atlas_from_report
 from .audits import Thresholds
+from .calibration import (
+    brier_score,
+    expected_calibration_error,
+    reliability_table,
+)
 from .judge import Judge, MockJudge
 from .suite import AuditSuiteReport, audit_suite
 
@@ -454,12 +459,174 @@ def main_atlas(argv: list[str]) -> int:
     return 0
 
 
+
+def load_labelled_scores(path: Path) -> tuple[list[float], list[int], int]:
+    """Read {"scores": [...], "labels": [...], "bins": n} from `path`.
+
+    Also accepts {"cases": [{"score": .., "label": ..}, ...]} — the same
+    shape a scoring run naturally produces — so callers need not transpose.
+    """
+    try:
+        raw = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{path} is not valid JSON: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path} must contain a JSON object.")
+
+    if "cases" in raw:
+        entries = raw["cases"]
+        if not isinstance(entries, list) or not entries:
+            raise ValueError(f"{path} needs a non-empty list 'cases'.")
+        scores, labels = [], []
+        for i, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                raise ValueError(f"{path} case {i} must be an object.")
+            missing = [k for k in ("score", "label") if k not in entry]
+            if missing:
+                raise ValueError(
+                    f"{path} case {i} is missing {', '.join(missing)}."
+                )
+            scores.append(entry["score"])
+            labels.append(entry["label"])
+    else:
+        scores = raw.get("scores")
+        labels = raw.get("labels")
+        if not isinstance(scores, list) or not scores:
+            raise ValueError(f"{path} needs a non-empty list 'scores'.")
+        if not isinstance(labels, list) or not labels:
+            raise ValueError(f"{path} needs a non-empty list 'labels'.")
+
+    bad = [
+        i
+        for i, v in enumerate(scores)
+        if isinstance(v, bool) or not isinstance(v, (int, float))
+    ]
+    if bad:
+        raise ValueError(
+            f"{path}: scores must be numbers; offending index(es): "
+            + ", ".join(str(i) for i in bad[:5])
+        )
+
+    bins = raw.get("bins", 10)
+    if isinstance(bins, bool) or not isinstance(bins, int):
+        raise ValueError(f"{path}: 'bins' must be an integer.")
+    # brier_score/reliability_table validate range, length and label values.
+    return [float(v) for v in scores], labels, bins
+
+
+def format_reliability(table, fmt: str = "ascii") -> str:
+    """Render a reliability table, so the gap is visible per bucket."""
+    header = ("bucket", "n", "mean score", "accuracy", "gap")
+    rows = [
+        (
+            f"{b.lower:.2f}-{b.upper:.2f}",
+            str(b.count),
+            f"{b.mean_score:.3f}",
+            f"{b.accuracy:.3f}",
+            f"{b.mean_score - b.accuracy:+.3f}",
+        )
+        for b in table
+    ]
+    if fmt == "markdown":
+        out = ["| " + " | ".join(header) + " |",
+               "|" + "|".join(["---"] * len(header)) + "|"]
+        out += ["| " + " | ".join(r) + " |" for r in rows]
+        return "\n".join(out)
+    widths = [
+        max(len(header[i]), *(len(r[i]) for r in rows)) if rows else len(header[i])
+        for i in range(len(header))
+    ]
+    def line(cells):
+        return "  ".join(c.rjust(widths[i]) for i, c in enumerate(cells))
+    return "\n".join([line(header), line(["-" * w for w in widths])]
+                     + [line(r) for r in rows])
+
+
+def build_calibrate_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="juryrig calibrate",
+        description="Score a judge's calibration against human labels: Brier "
+        "score, expected calibration error, and a reliability table. Exits 1 "
+        "if ECE exceeds --max-ece, 2 on bad input.",
+    )
+    parser.add_argument(
+        "labels",
+        type=Path,
+        help='JSON: {"scores": [...], "labels": [0|1, ...], "bins": 10} '
+        'or {"cases": [{"score": .., "label": ..}, ...]}',
+    )
+    parser.add_argument(
+        "--max-ece",
+        type=float,
+        default=0.1,
+        help="Fail when expected calibration error exceeds this (default: 0.1).",
+    )
+    parser.add_argument(
+        "--bins", type=int, help="Override the bin count from the file."
+    )
+    parser.add_argument(
+        "--fmt", default="ascii", choices=("ascii", "markdown"),
+        help="Reliability table format (default: ascii).",
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Emit the report as JSON."
+    )
+    return parser
+
+
+def main_calibrate(argv: list[str]) -> int:
+    args = build_calibrate_parser().parse_args(argv)
+    if args.max_ece < 0:
+        print("juryrig: --max-ece must be non-negative", file=sys.stderr)
+        return 2
+    try:
+        scores, labels, bins = load_labelled_scores(args.labels)
+        if args.bins is not None:
+            bins = args.bins
+        brier = brier_score(scores, labels)
+        ece = expected_calibration_error(scores, labels, bins)
+        table = reliability_table(scores, labels, bins)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"juryrig: {exc}", file=sys.stderr)
+        return 2
+
+    flagged = ece > args.max_ece
+    if args.json:
+        print(json.dumps({
+            "pairs": len(scores),
+            "bins": bins,
+            "brier_score": brier,
+            "expected_calibration_error": ece,
+            "max_ece": args.max_ece,
+            "flagged": flagged,
+            "reliability": [
+                {
+                    "lower": b.lower, "upper": b.upper, "count": b.count,
+                    "mean_score": b.mean_score, "accuracy": b.accuracy,
+                    "gap": b.mean_score - b.accuracy,
+                }
+                for b in table
+            ],
+        }, indent=2))
+    else:
+        print(f"pairs: {len(scores)}  bins: {bins}")
+        print(f"brier_score                {brier:.4f}")
+        print(f"expected_calibration_error {ece:.4f}  (max {args.max_ece:.4f})")
+        print()
+        print(format_reliability(table, args.fmt))
+        print()
+        print("FLAGGED: judge is miscalibrated" if flagged
+              else "PASSED: calibration within tolerance")
+    return 1 if flagged else 0
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "agree":
         return main_agree(argv[1:])
     if argv and argv[0] == "atlas":
         return main_atlas(argv[1:])
+    if argv and argv[0] == "calibrate":
+        return main_calibrate(argv[1:])
     return main_audit(argv)
 
 
