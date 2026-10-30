@@ -122,6 +122,33 @@ assert not report.flagged, f"judge failed: {report.failures}"
 If the judge has no `compare()`, the position audit is reported in
 `report.skipped` rather than silently counted as a pass.
 
+## Is it position bias, or just an unsteady judge?
+
+`position_bias()` shows each pair once per order, so *any* change of verdict
+reads as order-dependence. A judge that simply wavers run to run produces the
+same signal. `verdict_consistency()` separates them by re-comparing one fixed
+ordering:
+
+```python
+from juryrig import verdict_consistency
+
+report = verdict_consistency(judge, prompt=prompt, a=good, b=weak,
+                             rubric=rubric, runs=5)
+print(report.modal_verdict, report.stability, report.counts)
+```
+
+A position-bias flag only means position bias once `stability` is high. Note
+the threshold direction: `verdict_stability` is a **floor**, not a ceiling —
+every other threshold caps a defect, this one sets a minimum, so a lower
+value is the more permissive one.
+
+It is deliberately not part of `audit_suite()`. It needs its own `compare()`
+calls, and for a judge whose behaviour depends on call order — such as
+`MockJudge(instability=...)`, whose drift is seeded on a call counter —
+those extra calls shift every later measurement. Folding it into the suite
+measurably changed the synthetic evaluation lab's reproducible output, so it
+stays a separate diagnostic you run alongside.
+
 ## Ties
 
 `compare()` may return `"tie"` as well as `"A"` or `"B"`. It's optional — a

@@ -28,10 +28,12 @@ from .audits import (
     PromptInjectionReport,
     Thresholds,
     VerbosityBiasReport,
+    VerdictConsistencyReport,
     position_bias,
     prompt_injection_bias,
     self_consistency,
     verbosity_bias,
+    verdict_consistency,
 )
 from .calibration import brier_score, expected_calibration_error, reliability_table
 from .judge import Judge, Judgment, MockJudge, PairwiseJudge
@@ -63,6 +65,7 @@ __all__ = [
     "SplitCluster",
     "Thresholds",
     "VerbosityBiasReport",
+    "VerdictConsistencyReport",
     "agreement_matrix",
     "audit_suite",
     "brier_score",
@@ -75,4 +78,5 @@ __all__ = [
     "reliability_table",
     "self_consistency",
     "verbosity_bias",
+    "verdict_consistency",
 ]

@@ -11,6 +11,13 @@ Notable changes to juryrig. Format loosely follows
   — the library's flagship audit — runs against a live model instead of being
   silently skipped by `audit_suite()`. `HttpJudge` already had it; the shared
   prompt and verdict parsing now live once in `providers` rather than twice.
+- `verdict_consistency()` measures how often a pairwise judge returns the
+  same verdict for one fixed ordering, with a `verdict_stability` threshold
+  (a floor, not a ceiling). `position_bias()` shows each ordering once and so
+  cannot tell order-dependence from a judge that merely wavers; this can.
+  Kept out of `audit_suite()` on purpose: its extra `compare()` calls shift
+  later measurements for judges whose behaviour depends on call order, which
+  changed the evaluation lab's reproducible output.
 
 ## [0.3.1] - 2026-10-12
 
