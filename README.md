@@ -364,6 +364,22 @@ print(expected_calibration_error(scores, labels))
 A judge that says 0.9 should be right ~90% of the time. ECE tells you how far
 that promise is from reality.
 
+The same thing from the command line, so calibration can gate CI alongside
+the bias audits:
+
+```bash
+juryrig calibrate labels.json                  # exits 1 if ECE > 0.1
+juryrig calibrate labels.json --max-ece 0.05   # stricter
+juryrig calibrate labels.json --json           # machine-readable
+```
+
+The file is `{"scores": [...], "labels": [0|1, ...], "bins": 10}`, or
+`{"cases": [{"score": .., "label": ..}, ...]}` if that is the shape your
+scoring run already produces. Output includes a reliability table with a
+per-bucket `gap` column (`mean_score - accuracy`), which is where a
+miscalibrated judge actually shows itself — a single ECE number tells you
+*that* it is off, not *where*.
+
 ## Pairwise agreement matrix
 
 Before you pool judges into a panel, check whether they actually agree on the

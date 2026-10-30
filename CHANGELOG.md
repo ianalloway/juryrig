@@ -11,6 +11,11 @@ Notable changes to juryrig. Format loosely follows
   — the library's flagship audit — runs against a live model instead of being
   silently skipped by `audit_suite()`. `HttpJudge` already had it; the shared
   prompt and verdict parsing now live once in `providers` rather than twice.
+- `juryrig calibrate` exposes Brier score, expected calibration error and a
+  reliability table from the command line, so calibration can gate CI like
+  the bias audits do. Exits 1 when ECE exceeds `--max-ece` (default 0.1), 2
+  on bad input. The table carries a per-bucket `gap` column, since one ECE
+  number says a judge is miscalibrated but not where.
 - `verdict_consistency()` measures how often a pairwise judge returns the
   same verdict for one fixed ordering, with a `verdict_stability` threshold
   (a floor, not a ceiling). `position_bias()` shows each ordering once and so
