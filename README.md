@@ -238,9 +238,10 @@ full nested structure including exact / within-ε / κ matrices.
 ### Optional: provider-backed judges
 
 `AnthropicJudge` and `OpenAIJudge` wrap the Anthropic/OpenAI HTTP APIs
-(stdlib-only, no extra dependencies) and work with the single-response
-audits. They're not exported from the top-level package — import them
-explicitly when you need a live model:
+(stdlib-only, no extra dependencies). Both implement `judge()` and
+`compare()`, so the whole of `audit_suite()` — position bias included — runs
+against a live model. They're not exported from the top-level package —
+import them explicitly when you need one:
 
 ```python
 from juryrig.providers import AnthropicJudge, OpenAIJudge  # needs *_API_KEY env var

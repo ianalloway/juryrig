@@ -15,7 +15,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
-from .judge import Judgment
+from .judge import Judgment, Verdict
 
 # Transient by nature: rate limits, timeouts, and upstream hiccups. Anything
 # else (401, 404, 400) means the request itself is wrong and will stay wrong.
@@ -64,6 +64,37 @@ _JUDGE_INSTRUCTIONS = (
     'from 0.0 to 1.0. Reply with JSON only: '
     '{"score": <float>, "reasoning": "<one sentence>"}'
 )
+
+
+_COMPARE_INSTRUCTIONS = (
+    "You are an impartial evaluator. Compare RESPONSE_A and RESPONSE_B "
+    "against the RUBRIC. Reply with JSON only: "
+    '{"winner": "A"|"B"|"tie", "reasoning": "<one sentence>"}'
+)
+
+
+def _compare_user_message(prompt: str, a: str, b: str, rubric: str) -> str:
+    """The pairwise payload. Shared by every provider, so it lives once."""
+    return (
+        f"PROMPT:\n{prompt}\n\n"
+        f"RESPONSE_A:\n{a}\n\n"
+        f"RESPONSE_B:\n{b}\n\n"
+        f"RUBRIC:\n{rubric}"
+    )
+
+
+def _parse_verdict(text: str) -> Verdict:
+    """Extract A/B/tie from a JSON blob that may be wrapped in prose."""
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end == -1:
+        raise ValueError(f"Judge returned non-JSON output: {text[:200]!r}")
+    data = json.loads(text[start : end + 1])
+    winner = data.get("winner")
+    if winner not in ("A", "B", "tie"):
+        raise ValueError(
+            f"Judge returned winner {winner!r}; expected 'A', 'B', or 'tie'."
+        )
+    return winner  # type: ignore[return-value]
 
 
 def _user_message(prompt: str, response: str, rubric: str) -> str:
@@ -169,7 +200,11 @@ def _parse_judgment(text: str) -> Judgment:
 
 
 class AnthropicJudge:
-    """LLM judge backed by the Anthropic Messages API (ANTHROPIC_API_KEY)."""
+    """LLM judge backed by the Anthropic Messages API (ANTHROPIC_API_KEY).
+
+    Implements both `judge()` and `compare()`, so the full `audit_suite()` —
+    position bias included — runs against a live model.
+    """
 
     def __init__(
         self,
@@ -201,9 +236,33 @@ class AnthropicJudge:
         )
         return _parse_judgment(_first_text_block(body["content"]))
 
+    def compare(self, *, prompt: str, a: str, b: str, rubric: str) -> Verdict:
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        if not key:
+            raise RuntimeError("Set ANTHROPIC_API_KEY to use AnthropicJudge.")
+        body = _http_json(
+            "https://api.anthropic.com/v1/messages",
+            {"x-api-key": key, "anthropic-version": "2023-06-01"},
+            {
+                "model": self.model,
+                "max_tokens": 200,
+                "system": _COMPARE_INSTRUCTIONS,
+                "messages": [{
+                    "role": "user",
+                    "content": _compare_user_message(prompt, a, b, rubric),
+                }],
+            },
+            retry=self.retry,
+        )
+        return _parse_verdict(_first_text_block(body["content"]))
+
 
 class OpenAIJudge:
-    """LLM judge backed by the OpenAI Chat Completions API (OPENAI_API_KEY)."""
+    """LLM judge backed by the OpenAI Chat Completions API (OPENAI_API_KEY).
+
+    Implements both `judge()` and `compare()`, so the full `audit_suite()` —
+    position bias included — runs against a live model.
+    """
 
     def __init__(
         self,
@@ -236,3 +295,25 @@ class OpenAIJudge:
             retry=self.retry,
         )
         return _parse_judgment(body["choices"][0]["message"]["content"])
+
+    def compare(self, *, prompt: str, a: str, b: str, rubric: str) -> Verdict:
+        key = os.environ.get("OPENAI_API_KEY")
+        if not key:
+            raise RuntimeError("Set OPENAI_API_KEY to use OpenAIJudge.")
+        body = _http_json(
+            "https://api.openai.com/v1/chat/completions",
+            {"Authorization": f"Bearer {key}"},
+            {
+                "model": self.model,
+                "temperature": 0,
+                "messages": [
+                    {"role": "system", "content": _COMPARE_INSTRUCTIONS},
+                    {
+                        "role": "user",
+                        "content": _compare_user_message(prompt, a, b, rubric),
+                    },
+                ],
+            },
+            retry=self.retry,
+        )
+        return _parse_verdict(body["choices"][0]["message"]["content"])

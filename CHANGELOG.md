@@ -5,6 +5,13 @@ Notable changes to juryrig. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- `AnthropicJudge` and `OpenAIJudge` implement `compare()`, so position bias
+  — the library's flagship audit — runs against a live model instead of being
+  silently skipped by `audit_suite()`. `HttpJudge` already had it; the shared
+  prompt and verdict parsing now live once in `providers` rather than twice.
+
 ## [0.3.1] - 2026-10-12
 
 Security release for the `HttpJudge` key leak (#31). It also ships everything

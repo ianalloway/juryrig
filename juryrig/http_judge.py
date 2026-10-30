@@ -20,17 +20,19 @@ third-party endpoint never sends your OpenAI key there by accident.
 """
 from __future__ import annotations
 
-import json
 import os
 from typing import Mapping
 from urllib.parse import urlsplit
 
 from .judge import Judgment, Verdict
+from .providers import _COMPARE_INSTRUCTIONS as _COMPARE_SYSTEM
 from .providers import (
     DEFAULT_RETRY,
     RetryPolicy,
+    _compare_user_message,
     _http_json,
     _parse_judgment,
+    _parse_verdict,
     _user_message,
 )
 
@@ -38,12 +40,6 @@ _JUDGE_SYSTEM = (
     "You are an impartial evaluator. Score the RESPONSE against the RUBRIC "
     "from 0.0 to 1.0. Reply with JSON only: "
     '{"score": <float>, "reasoning": "<one sentence>"}'
-)
-
-_COMPARE_SYSTEM = (
-    "You are an impartial evaluator. Compare RESPONSE_A and RESPONSE_B "
-    "against the RUBRIC. Reply with JSON only: "
-    '{"winner": "A"|"B"|"tie", "reasoning": "<one sentence>"}'
 )
 
 _DEFAULT_KEY_ENV = "OPENAI_API_KEY"
@@ -54,29 +50,6 @@ def _is_openai_url(url: str) -> bool:
     """True only for https://api.openai.com endpoints."""
     parts = urlsplit(url)
     return parts.scheme == "https" and (parts.hostname or "").lower() == _OPENAI_HOST
-
-
-def _compare_user_message(prompt: str, a: str, b: str, rubric: str) -> str:
-    return (
-        f"PROMPT:\n{prompt}\n\n"
-        f"RESPONSE_A:\n{a}\n\n"
-        f"RESPONSE_B:\n{b}\n\n"
-        f"RUBRIC:\n{rubric}"
-    )
-
-
-def _parse_verdict(text: str) -> Verdict:
-    """Extract A/B/tie from a JSON blob that may be wrapped in prose."""
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end == -1:
-        raise ValueError(f"Judge returned non-JSON output: {text[:200]!r}")
-    data = json.loads(text[start : end + 1])
-    winner = data.get("winner")
-    if winner not in ("A", "B", "tie"):
-        raise ValueError(
-            f"Judge returned winner {winner!r}; expected 'A', 'B', or 'tie'."
-        )
-    return winner  # type: ignore[return-value]
 
 
 class HttpJudge:
