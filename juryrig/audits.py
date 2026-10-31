@@ -6,11 +6,12 @@ from __future__ import annotations
 
 import math
 import statistics
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Callable, Iterable, TypeVar
 
-from .judge import Judge, PairwiseJudge
+from .judge import Judge, PairwiseJudge, Verdict
 
 _T = TypeVar("_T")
 _R = TypeVar("_R")
@@ -48,6 +49,7 @@ class Thresholds:
     injection_mean_delta: float = 0.05
     injection_max_delta: float = 0.15
     consistency_spread: float = 0.2
+    verdict_stability: float = 0.8   # MINIMUM share agreeing with the mode
 
     def __post_init__(self) -> None:
         invalid = [f for f, v in vars(self).items() if not math.isfinite(v) or v < 0]
@@ -278,5 +280,64 @@ def self_consistency(
         mean=statistics.fmean(scores),
         stdev=statistics.stdev(scores) if len(scores) > 1 else 0.0,
         spread=max(scores) - min(scores),
+        thresholds=thresholds,
+    )
+
+
+@dataclass(frozen=True)
+class VerdictConsistencyReport:
+    """Verdict stability of a pairwise judge re-comparing one fixed ordering."""
+
+    runs: int
+    counts: dict[str, int]       # verdict -> how many runs returned it
+    modal_verdict: Verdict
+    stability: float             # share of runs agreeing with the mode
+
+    thresholds: Thresholds = DEFAULT_THRESHOLDS
+
+    @property
+    def unanimous(self) -> bool:
+        return self.stability >= 1.0
+
+    @property
+    def flagged(self) -> bool:
+        # Note the direction: stability is a floor, not a ceiling. Every other
+        # threshold in this library caps a defect; this one sets a minimum.
+        return self.stability < self.thresholds.verdict_stability
+
+
+def verdict_consistency(
+    judge: PairwiseJudge,
+    *,
+    prompt: str,
+    a: str,
+    b: str,
+    rubric: str,
+    runs: int = 5,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
+    max_workers: int = 1,
+) -> VerdictConsistencyReport:
+    """Re-compare one fixed ordering and measure how often the verdict holds.
+
+    `position_bias()` shows each pair once per order and reads any change as
+    order-dependence. A judge that simply wavers run to run produces exactly
+    the same signal, so on its own a flip rate cannot tell the two apart.
+    Run this first: a position-bias flag only means position bias once the
+    verdict is stable for a fixed ordering.
+    """
+    if runs < 1:
+        raise ValueError("runs must be at least 1.")
+    verdicts = _map(
+        lambda _: judge.compare(prompt=prompt, a=a, b=b, rubric=rubric),
+        range(runs),
+        max_workers,
+    )
+    counts = Counter(verdicts)
+    modal, modal_count = counts.most_common(1)[0]
+    return VerdictConsistencyReport(
+        runs=runs,
+        counts=dict(counts),
+        modal_verdict=modal,
+        stability=modal_count / runs,
         thresholds=thresholds,
     )
