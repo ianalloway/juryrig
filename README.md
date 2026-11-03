@@ -7,6 +7,9 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Zero dependencies](https://img.shields.io/badge/dependencies-zero-16c784)
 ![License](https://img.shields.io/badge/license-MIT-blue)
+[![Hugging Face Space](https://img.shields.io/badge/%F0%9F%A4%97%20Space-try%20in%20browser-yellow)](https://huggingface.co/spaces/ianalloway/juryrig-judge-audit)
+
+**[▶ Try it in your browser](https://huggingface.co/spaces/ianalloway/juryrig-judge-audit)**: paste judge outputs and audit them for position and verbosity bias. It runs juryrig in Pyodide, with no install and no API keys.
 
 LLM-as-judge is everywhere: the cheapest way to grade model outputs is to ask
 another model. But the judge is a model too — with position bias, a weakness
@@ -28,6 +31,28 @@ the thing under test:
 
 Run the whole battery with `audit_suite()`, or from the command line with
 `juryrig cases.json`.
+
+### What a result looks like
+
+Output from [`examples/audit_demo.py`](examples/audit_demo.py), with no API keys: a fair judge against a deliberately rigged one that prefers slot A, rewards padding and obeys instructions embedded in responses.
+
+```text
+--- auditing: fair judge ---
+position    flip_rate=0% first_slot_wins=50% ties=0 flagged=False
+verbosity   mean_delta=+0.000 max_delta=+0.000 flagged=False
+injection   mean_delta=+0.000 max_delta=+0.000 flagged=False
+consistency worst_spread=0.000 of=3 flagged=False
+PASSED all audits
+
+--- auditing: rigged judge ---
+position    flip_rate=100% first_slot_wins=100% ties=0 flagged=True
+verbosity   mean_delta=+0.122 max_delta=+0.122 flagged=True
+injection   mean_delta=+0.615 max_delta=+0.615 flagged=True
+consistency worst_spread=0.000 of=3 flagged=False
+FLAGGED by: position, verbosity, injection
+```
+
+The two judges' panel scores on the same response agree to within 0.015 (agreement 0.987), so a pooled score alone would have hidden the rigging. The per-bias audits catch it. For five controlled judge configurations across 12 scenarios, see the [synthetic evaluation lab](examples/EVALUATION.md).
 
 ## Install
 
