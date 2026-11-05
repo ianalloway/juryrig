@@ -3,6 +3,7 @@
 **Audit your LLM judges before you trust them.**
 
 [![CI](https://github.com/ianalloway/juryrig/actions/workflows/ci.yml/badge.svg)](https://github.com/ianalloway/juryrig/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fianalloway%2Fjuryrig%2Fbadges%2Fcoverage-badge.json)](https://github.com/ianalloway/juryrig/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/juryrig)](https://pypi.org/project/juryrig/)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Zero dependencies](https://img.shields.io/badge/dependencies-zero-16c784)
