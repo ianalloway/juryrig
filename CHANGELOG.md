@@ -5,24 +5,58 @@ Notable changes to juryrig. Format loosely follows
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-05
+
+Security patch for the judge credential leak via redirects (#38), plus
+stricter validation of judge scores and audit settings (#39). It also ships
+the provider `compare()` support, `verdict_consistency()`, and
+`juryrig calibrate` that were merged as #41.
+
+### Security
+
+- Provider judge HTTP calls no longer follow redirects (#38). `urllib`
+  copies the `Authorization` header onto cross-host redirects, so a judge
+  endpoint answering 30x could receive — and forward — the API key.
+  Redirects now raise an error instead, and a new test proves the key
+  never reaches the redirect target. This covers `AnthropicJudge`,
+  `OpenAIJudge`, and `HttpJudge`, which all go through `_http_json`.
+  **Behaviour change:** a judge endpoint that redirects now fails the
+  call instead of being followed.
+- Supply-chain hardening in the same change: every GitHub Action pinned
+  to a full SHA, top-level `contents: read` permissions, and a CodeQL
+  workflow.
+
+### Fixed
+
+- `Judgment.score` must now be a finite number in `[0, 1]` (#39). `NaN`,
+  ±∞, booleans, non-numbers, and out-of-range scores raise `ValueError`
+  at construction instead of silently poisoning agreement and
+  calibration math.
+- `Thresholds` and `AgreementThresholds` reject non-finite values, and
+  `agreement_matrix()` requires a finite, non-negative `epsilon`.
+  Previously `NaN` slipped past the range checks (`NaN < 0` and
+  `NaN > 1` are both `False`), which could silently disable a failure
+  check.
+
 ### Added
 
-- `AnthropicJudge` and `OpenAIJudge` implement `compare()`, so position bias
-  — the library's flagship audit — runs against a live model instead of being
-  silently skipped by `audit_suite()`. `HttpJudge` already had it; the shared
-  prompt and verdict parsing now live once in `providers` rather than twice.
+- `AnthropicJudge` and `OpenAIJudge` implement `compare()` (#41), so
+  position bias — the library's flagship audit — runs against a live model
+  instead of being silently skipped by `audit_suite()`. `HttpJudge`
+  already had it; the shared prompt and verdict parsing now live once in
+  `providers` rather than twice.
 - `juryrig calibrate` exposes Brier score, expected calibration error and a
-  reliability table from the command line, so calibration can gate CI like
-  the bias audits do. Exits 1 when ECE exceeds `--max-ece` (default 0.1), 2
-  on bad input. The table carries a per-bucket `gap` column, since one ECE
-  number says a judge is miscalibrated but not where.
+  reliability table from the command line (#41), so calibration can gate CI
+  like the bias audits do. Exits 1 when ECE exceeds `--max-ece` (default
+  0.1), 2 on bad input. The table carries a per-bucket `gap` column, since
+  one ECE number says a judge is miscalibrated but not where.
 - `verdict_consistency()` measures how often a pairwise judge returns the
-  same verdict for one fixed ordering, with a `verdict_stability` threshold
-  (a floor, not a ceiling). `position_bias()` shows each ordering once and so
-  cannot tell order-dependence from a judge that merely wavers; this can.
-  Kept out of `audit_suite()` on purpose: its extra `compare()` calls shift
-  later measurements for judges whose behaviour depends on call order, which
-  changed the evaluation lab's reproducible output.
+  same verdict for one fixed ordering (#41), with a `verdict_stability`
+  threshold (a floor, not a ceiling). `position_bias()` shows each ordering
+  once and so cannot tell order-dependence from a judge that merely wavers;
+  this can. Kept out of `audit_suite()` on purpose: its extra `compare()`
+  calls shift later measurements for judges whose behaviour depends on call
+  order, which changed the evaluation lab's reproducible output.
 
 ## [0.3.1] - 2026-10-12
 

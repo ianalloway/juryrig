@@ -40,7 +40,7 @@ from .judge import Judge, Judgment, MockJudge, PairwiseJudge
 from .panel import Panel, PanelReport, PanelVerdict
 from .suite import AuditSuiteReport, audit_suite
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 __all__ = [
     "AgreementMatrixReport",
