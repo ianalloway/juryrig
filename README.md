@@ -228,6 +228,33 @@ input order, so a report is identical no matter how many workers produced it
 — workers are a speed knob, never a correctness one. Your judge must be
 thread-safe to raise it. The CLI exposes the same thing as `--workers`.
 
+## A skipped audit is not a pass
+
+`audit_suite()` can only run the position audit against a judge with
+`compare()`. When it cannot, that audit is **skipped**, which is different
+from passing it — `flagged` can be `false` while part of the battery never
+ran at all.
+
+The report says so, and says why:
+
+```python
+report.skipped          # ('position',)
+report.skipped_reasons  # {'position': 'judge has no compare(); ...'}
+```
+
+The CLI prints a warning to stderr (so it never corrupts `--json` stdout),
+and the JSON output carries `skipped` and `skipped_reasons`. In CI, check
+`skipped` as well as the exit code.
+
+## Machine-readable output
+
+Every subcommand takes `--json` and emits one object stamped with
+`schema_version` and a `report` name (`audit`, `agree`, `atlas`,
+`calibrate`). The version is bumped only on a breaking change; adding a
+field is not breaking, so ignore keys you do not recognise.
+
+The full contract is in [docs/report-schema.md](docs/report-schema.md).
+
 ## Tuning what counts as a failure
 
 Every `flagged` verdict comes from a `Thresholds` object. The defaults are

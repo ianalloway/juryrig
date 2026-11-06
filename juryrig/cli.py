@@ -82,6 +82,22 @@ def _load_agreement_thresholds(raw: dict, path: Path) -> AgreementThresholds:
     return AgreementThresholds(**overrides)
 
 
+SCHEMA_VERSION = 1
+"""Version of the CLI's `--json` output contract.
+
+Bumped only on a breaking change: a field removed or renamed, or its type or
+meaning changed. Adding a field is not breaking, so consumers should ignore
+keys they do not know. `docs/report-schema.md` has the policy and the shapes.
+"""
+
+
+def _emit_json(report: str, payload: dict) -> str:
+    """Stamp a payload with its schema version and render it."""
+    return json.dumps(
+        {"schema_version": SCHEMA_VERSION, "report": report, **payload}, indent=2
+    )
+
+
 def load_cases(path: Path) -> tuple[str, list[tuple[str, str, str]], Thresholds]:
     """Read a case file: {"rubric": str, "cases": [...], "thresholds": {...}}."""
     try:
@@ -202,8 +218,27 @@ def report_to_dict(report: AuditSuiteReport) -> dict:
         "flagged": report.flagged,
         "failures": list(report.failures),
         "skipped": list(report.skipped),
+        "skipped_reasons": report.skipped_reasons,
         "audits": audits,
     }
+
+
+
+def warn_skipped(report: AuditSuiteReport) -> None:
+    """Say out loud which audits never ran.
+
+    A skipped audit is a coverage gap, not a pass, and exit code 0 cannot
+    express the difference. stderr keeps this clear of `--json` stdout.
+    """
+    if not report.skipped_reasons:
+        return
+    for name, reason in report.skipped_reasons.items():
+        print(f"juryrig: warning: {name} audit skipped — {reason}", file=sys.stderr)
+    print(
+        "juryrig: warning: this judge was not fully audited; "
+        f"{len(report.skipped_reasons)} of 4 audits did not run",
+        file=sys.stderr,
+    )
 
 
 def _parse_seeds(raw: str) -> list[int]:
@@ -374,8 +409,9 @@ def main_audit(argv: list[str]) -> int:
         print(f"juryrig: {exc}", file=sys.stderr)
         return 2
 
+    warn_skipped(report)
     if args.json:
-        print(json.dumps(report_to_dict(report), indent=2))
+        print(_emit_json("audit", report_to_dict(report)))
     else:
         print(report.summary())
     return 1 if report.flagged else 0
@@ -409,7 +445,7 @@ def main_agree(argv: list[str]) -> int:
         return 2
 
     if args.json:
-        print(json.dumps(report.to_dict(), indent=2))
+        print(_emit_json("agree", report.to_dict()))
     else:
         print(report.summary())
         if args.fmt == "markdown":
@@ -451,7 +487,7 @@ def main_atlas(argv: list[str]) -> int:
         return 2
 
     if args.json:
-        print(json.dumps(atlas.to_dict(), indent=2))
+        print(_emit_json("atlas", atlas.to_dict()))
     elif args.fmt == "markdown":
         print(atlas.to_markdown(top=args.top))
     else:
@@ -592,7 +628,7 @@ def main_calibrate(argv: list[str]) -> int:
 
     flagged = ece > args.max_ece
     if args.json:
-        print(json.dumps({
+        print(_emit_json("calibrate", {
             "pairs": len(scores),
             "bins": bins,
             "brier_score": brier,
@@ -607,7 +643,7 @@ def main_calibrate(argv: list[str]) -> int:
                 }
                 for b in table
             ],
-        }, indent=2))
+        }))
     else:
         print(f"pairs: {len(scores)}  bins: {bins}")
         print(f"brier_score                {brier:.4f}")

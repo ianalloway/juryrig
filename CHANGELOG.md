@@ -5,6 +5,18 @@ Notable changes to juryrig. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- `AuditSuiteReport.skipped_reasons` says *why* each skipped audit could not
+  run, and the CLI warns on stderr when a judge was not fully audited. A
+  skipped audit is a coverage gap, not a pass: `flagged` could read `false`
+  while part of the battery never executed, with nothing in the output
+  saying so. (ROADMAP 0.4.0 must-have #4.)
+- Every `--json` output carries `schema_version` and a `report` name, so CI
+  and dashboards can consume results without breaking on upgrades. The
+  contract and its compatibility policy are documented in
+  `docs/report-schema.md`. (ROADMAP 0.4.0 must-have #5.)
+
 ## [0.3.2] - 2026-11-05
 
 Security patch for the judge credential leak via redirects (#38), plus
