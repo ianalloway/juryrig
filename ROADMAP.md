@@ -6,7 +6,7 @@ _Last updated 2026-10-31. This is a plan, not a promise. Items move when evidenc
 
 - **PyPI:** 0.3.1 (2026-10-12): audits, panels, agreement matrix, disagreement atlas, calibration, `HttpJudge` key scoping.
 - **Merged on `main` but unreleased:** #38 (judges refuse HTTP redirects so API keys can't leak, SHA-pinned Actions, CodeQL) and #39 (reject NaN/∞ judge scores and audit thresholds). `CHANGELOG.md` `[Unreleased]` does not list them yet.
-- **Open PR:** #41 adds provider `compare()`, `verdict_consistency()`, and `juryrig calibrate`.
+- **Shipped in 0.3.2:** #41 (provider `compare()`, `verdict_consistency()`, `juryrig calibrate`).
 - **Open issues:** none.
 
 ## 0.3.2: security patch (ship first, small)
@@ -28,8 +28,8 @@ Theme: close the gaps where a headline feature is missing for some judges or can
 | 1 | Provider `compare()` for `AnthropicJudge` / `OpenAIJudge`, with the pairwise prompt and parser shared with `HttpJudge` | `audit_suite()` currently skips the position audit for the named providers without saying so | #41 |
 | 2 | `verdict_consistency()` | Tells run-to-run wavering apart from true position bias. Kept out of `audit_suite()` on purpose (see #41) | #41 |
 | 3 | `juryrig calibrate` CLI, with an ECE gate and a per-bucket gap column | Calibration can gate CI like the bias audits do | #41 |
-| 4 | `audit_suite()` reports which audits it **skipped** and why, both in the report and as a CLI warning | No more silent coverage gaps (the bug #41 found) | new |
-| 5 | Stable JSON report schema, versioned with a `schema_version` field and documented in `docs/report-schema.md` | Lets CI and dashboards consume results without breaking on upgrades | new |
+| 4 | ~~`audit_suite()` reports which audits it **skipped** and why, both in the report and as a CLI warning~~ **done** | No more silent coverage gaps (the bug #41 found) | new |
+| 5 | ~~Stable JSON report schema, versioned with a `schema_version` field and documented in `docs/report-schema.md`~~ **done** | Lets CI and dashboards consume results without breaking on upgrades | new |
 
 ### Should have
 

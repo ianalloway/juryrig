@@ -51,8 +51,25 @@ class AuditSuiteReport:
 
     @property
     def skipped(self) -> tuple[str, ...]:
-        """Audits that could not run against this judge."""
-        return () if self.position is not None else ("position",)
+        """Names of the audits that could not run against this judge."""
+        return tuple(self.skipped_reasons)
+
+    @property
+    def skipped_reasons(self) -> dict[str, str]:
+        """Audits that could not run, each with the reason why.
+
+        An audit that did not run is not an audit that passed. A caller
+        reading only `flagged` would see a clean verdict with no hint that
+        part of the battery never executed, so the reason travels with the
+        report rather than being left for the reader to infer from a None.
+        """
+        reasons: dict[str, str] = {}
+        if self.position is None:
+            reasons["position"] = (
+                "judge has no compare(); position bias is unmeasurable for a "
+                "single-response judge"
+            )
+        return reasons
 
     @property
     def flagged(self) -> bool:
