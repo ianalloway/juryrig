@@ -1,0 +1,10 @@
+pmOnFail: ignore
+
+minimumReleaseAgeExclude:
+  - '@next/*'
+  - next
+
+# Next's optional Babel tooling must not retain the vulnerable Browserslist lock.
+# This stays within @babel/helper-compilation-targets' supported ^4.24.0 range.
+overrides:
+  browserslist: 4.29.4
