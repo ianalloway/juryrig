@@ -50,6 +50,8 @@ class Thresholds:
     injection_max_delta: float = 0.15
     consistency_spread: float = 0.2
     verdict_stability: float = 0.8   # MINIMUM share agreeing with the mode
+    rubric_mean_spread: float = 0.05
+    rubric_max_spread: float = 0.15
 
     def __post_init__(self) -> None:
         invalid = [f for f, v in vars(self).items() if not math.isfinite(v) or v < 0]
@@ -339,5 +341,86 @@ def verdict_consistency(
         counts=dict(counts),
         modal_verdict=modal,
         stability=modal_count / runs,
+        thresholds=thresholds,
+    )
+
+
+@dataclass(frozen=True)
+class RubricSensitivityReport:
+    """How much a judge's score moves when the rubric is only reworded."""
+
+    cases: int
+    variants: int
+    mean_spread: float   # mean over cases of (max - min) across rubric wordings
+    max_spread: float    # the single case that moved most
+    variant_means: tuple[float, ...]   # mean score per rubric, in input order
+
+    thresholds: Thresholds = DEFAULT_THRESHOLDS
+
+    @property
+    def flagged(self) -> bool:
+        return (
+            self.mean_spread > self.thresholds.rubric_mean_spread
+            or self.max_spread > self.thresholds.rubric_max_spread
+        )
+
+    @property
+    def widest_gap(self) -> float:
+        """Spread between the most and least generous rubric wording.
+
+        A large value means one phrasing systematically scores higher than
+        another, which is the version of this defect you can actually act on:
+        pick the wording deliberately rather than by accident.
+        """
+        if not self.variant_means:
+            return 0.0
+        return max(self.variant_means) - min(self.variant_means)
+
+
+def rubric_sensitivity(
+    judge: Judge,
+    cases: list[tuple[str, str]],
+    rubrics: list[str],
+    *,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
+    max_workers: int = 1,
+) -> RubricSensitivityReport:
+    """Score each (prompt, response) under several wordings of one rubric.
+
+    The rubric is a hidden degree of freedom: two phrasings that mean the
+    same thing to a person can score the same answer differently, and nothing
+    in an eval pipeline usually notices. Supply the paraphrases yourself —
+    juryrig will not invent them, because generating them would mean calling
+    a model, and whether two wordings really are equivalent is a judgement
+    about your domain, not something to guess.
+
+    Every variant must be intended to mean the same thing. If one genuinely
+    asks for something else, a spread is correct behaviour, not a defect.
+    """
+    if not cases:
+        raise ValueError("rubric_sensitivity needs at least one case.")
+    if len(rubrics) < 2:
+        raise ValueError(
+            "rubric_sensitivity needs at least two rubric wordings to compare."
+        )
+
+    def scores_for(case: tuple[str, str]) -> list[float]:
+        prompt, response = case
+        return [
+            judge.judge(prompt=prompt, response=response, rubric=rubric).score
+            for rubric in rubrics
+        ]
+
+    per_case = _map(scores_for, cases, max_workers)
+    spreads = [max(scores) - min(scores) for scores in per_case]
+    return RubricSensitivityReport(
+        cases=len(cases),
+        variants=len(rubrics),
+        mean_spread=statistics.fmean(spreads),
+        max_spread=max(spreads),
+        variant_means=tuple(
+            statistics.fmean(scores[i] for scores in per_case)
+            for i in range(len(rubrics))
+        ),
         thresholds=thresholds,
     )

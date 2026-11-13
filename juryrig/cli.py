@@ -20,7 +20,7 @@ from .agreement import (
     agreement_matrix,
 )
 from .atlas import disagreement_atlas_from_report
-from .audits import Thresholds
+from .audits import Thresholds, rubric_sensitivity
 from .calibration import (
     brier_score,
     expected_calibration_error,
@@ -655,6 +655,131 @@ def main_calibrate(argv: list[str]) -> int:
               else "PASSED: calibration within tolerance")
     return 1 if flagged else 0
 
+
+def load_rubric_variants(
+    path: Path,
+) -> tuple[list[str], list[tuple[str, str]], Thresholds]:
+    """Read {"rubrics": [...], "cases": [{prompt, good|response}, ...]}.
+
+    `good` is accepted as well as `response` so one case file can serve both
+    this and `juryrig audit` without being rewritten.
+    """
+    try:
+        raw = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{path} is not valid JSON: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path} must contain a JSON object.")
+
+    rubrics = raw.get("rubrics")
+    if not isinstance(rubrics, list) or len(rubrics) < 2:
+        raise ValueError(
+            f"{path} needs a list 'rubrics' with at least two wordings to compare."
+        )
+    bad = [i for i, r in enumerate(rubrics) if not isinstance(r, str) or not r.strip()]
+    if bad:
+        raise ValueError(
+            f"{path}: every rubric must be a non-empty string; offending "
+            "index(es): " + ", ".join(str(i) for i in bad[:5])
+        )
+    if len(set(rubrics)) != len(rubrics):
+        raise ValueError(
+            f"{path}: rubric wordings must differ; identical ones measure nothing."
+        )
+
+    entries = raw.get("cases")
+    if not isinstance(entries, list) or not entries:
+        raise ValueError(f"{path} needs a non-empty list 'cases'.")
+    cases = []
+    for i, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise ValueError(f"{path} case {i} must be an object.")
+        response = entry.get("response") or entry.get("good")
+        if not entry.get("prompt") or not response:
+            raise ValueError(
+                f"{path} case {i} needs a non-empty prompt and response (or good)."
+            )
+        cases.append((entry["prompt"], response))
+    return rubrics, cases, _load_thresholds(raw, path)
+
+
+def build_rubric_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="juryrig rubric",
+        description="Score the same responses under several wordings of one "
+        "rubric and measure the drift. Exits 1 if the judge is rubric-"
+        "sensitive, 2 on bad input.",
+    )
+    parser.add_argument(
+        "cases",
+        type=Path,
+        help='JSON: {"rubrics": [...], "cases": [{"prompt","good"}, ...]}',
+    )
+    parser.add_argument(
+        "--provider", default="mock", choices=("mock", "anthropic", "openai"),
+        help="Judge to audit (default: mock, no API key needed).",
+    )
+    parser.add_argument("--model", help="Model id for the chosen provider.")
+    parser.add_argument(
+        "--workers", type=int, default=1,
+        help="Parallel judge calls (default: 1, serial).",
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Emit the report as JSON."
+    )
+    return parser
+
+
+def rubric_report_to_dict(report, rubrics: list[str]) -> dict:
+    """JSON-safe view, pairing each rubric with its mean score."""
+    return {
+        "cases": report.cases,
+        "variants": report.variants,
+        "mean_spread": report.mean_spread,
+        "max_spread": report.max_spread,
+        "widest_gap": report.widest_gap,
+        "flagged": report.flagged,
+        "thresholds": asdict(report.thresholds),
+        "rubrics": [
+            {"rubric": rubric, "mean_score": mean}
+            for rubric, mean in zip(rubrics, report.variant_means)
+        ],
+    }
+
+
+def main_rubric(argv: list[str]) -> int:
+    args = build_rubric_parser().parse_args(argv)
+    if args.workers < 1:
+        print("juryrig: --workers must be at least 1", file=sys.stderr)
+        return 2
+    try:
+        rubrics, cases, thresholds = load_rubric_variants(args.cases)
+        judge = build_judge(args.provider, args.model)
+        report = rubric_sensitivity(
+            judge, cases, rubrics, thresholds=thresholds, max_workers=args.workers
+        )
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"juryrig: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(_emit_json("rubric", rubric_report_to_dict(report, rubrics)))
+    else:
+        print(f"cases: {report.cases}  rubric wordings: {report.variants}")
+        print(f"mean_spread  {report.mean_spread:.3f}")
+        print(f"max_spread   {report.max_spread:.3f}")
+        print(f"widest_gap   {report.widest_gap:.3f} "
+              "(most vs least generous wording)")
+        print()
+        width = max(len(f"{m:.3f}") for m in report.variant_means)
+        for rubric, mean in zip(rubrics, report.variant_means):
+            trimmed = rubric if len(rubric) <= 60 else rubric[:57] + "..."
+            print(f"  {mean:>{width}.3f}  {trimmed}")
+        print()
+        print("FLAGGED: judge is sensitive to rubric wording" if report.flagged
+              else "PASSED: wording does not move this judge")
+    return 1 if report.flagged else 0
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "agree":
@@ -663,6 +788,8 @@ def main(argv: list[str] | None = None) -> int:
         return main_atlas(argv[1:])
     if argv and argv[0] == "calibrate":
         return main_calibrate(argv[1:])
+    if argv and argv[0] == "rubric":
+        return main_rubric(argv[1:])
     return main_audit(argv)
 
 

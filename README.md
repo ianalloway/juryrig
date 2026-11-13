@@ -228,6 +228,46 @@ input order, so a report is identical no matter how many workers produced it
 — workers are a speed knob, never a correctness one. Your judge must be
 thread-safe to raise it. The CLI exposes the same thing as `--workers`.
 
+## Is your judge reading the rubric, or its wording?
+
+The rubric is a hidden degree of freedom. Two phrasings that mean the same
+thing to a person can score the same answer differently, and nothing in a
+normal eval pipeline notices.
+
+```python
+from juryrig import rubric_sensitivity
+
+report = rubric_sensitivity(judge, cases, rubrics=[
+    "Answer must mention photosynthesis, chlorophyll, sunlight, and energy.",
+    "The response should explain photosynthesis using chlorophyll and sunlight.",
+    "Must cover photosynthesis, chlorophyll, sunlight, energy.",
+])
+
+report.mean_spread     # average drift across wordings
+report.max_spread      # the case that moved most
+report.widest_gap      # most vs least generous wording
+report.variant_means   # mean score per rubric, in input order
+```
+
+`widest_gap` is the actionable number: a large value means one phrasing
+systematically scores higher, so you can choose the wording deliberately
+rather than by accident.
+
+**You supply the paraphrases.** juryrig will not invent them — generating
+them would mean calling a model, and whether two wordings really are
+equivalent is a judgement about your domain. If a variant genuinely asks for
+something else, a spread is correct behaviour, not a defect.
+
+From the command line, with a `"rubrics"` list in the case file:
+
+```bash
+juryrig rubric cases.json          # exits 1 if the judge is wording-sensitive
+```
+
+Like `verdict_consistency()`, this is not part of `audit_suite()`: it needs
+rubric variants the suite does not have, and its extra calls would shift
+measurements for judges whose behaviour depends on call order.
+
 ## A skipped audit is not a pass
 
 `audit_suite()` can only run the position audit against a judge with

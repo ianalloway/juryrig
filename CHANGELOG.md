@@ -7,6 +7,17 @@ Notable changes to juryrig. Format loosely follows
 
 ### Added
 
+- `rubric_sensitivity()` scores the same responses under several wordings of
+  one rubric and measures the drift, with `mean_spread`, `max_spread`,
+  per-wording `variant_means` and a `widest_gap` between the most and least
+  generous phrasing. Reachable as `juryrig rubric`. The paraphrases are
+  supplied by the caller: generating them would mean calling a model, and
+  whether two wordings are equivalent is a domain judgement. Kept out of
+  `audit_suite()`, like `verdict_consistency()`. (ROADMAP 0.4.0 should-have
+  #6.)
+
+### Added
+
 - `AuditSuiteReport.skipped_reasons` says *why* each skipped audit could not
   run, and the CLI warns on stderr when a judge was not fully audited. A
   skipped audit is a coverage gap, not a pass: `flagged` could read `false`

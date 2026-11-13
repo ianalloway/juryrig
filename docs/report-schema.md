@@ -11,7 +11,7 @@ Each object carries two identifying fields:
 | Field | Meaning |
 |---|---|
 | `schema_version` | Integer. The version of this contract. Currently `1`. |
-| `report` | Which subcommand produced it: `audit`, `agree`, `atlas`, `calibrate`. |
+| `report` | Which subcommand produced it: `audit`, `agree`, `atlas`, `calibrate`, `rubric`. |
 
 **`schema_version` is bumped only on a breaking change**: a field removed or
 renamed, or its type or meaning changed.
@@ -83,6 +83,27 @@ exit code: `1` when `flagged` is true, `0` when false, `2` on bad input.
 
 `gap` is `mean_score - accuracy`: positive means overconfident in that
 bucket, negative means underconfident. Buckets with no members are omitted.
+
+## `rubric`
+
+```json
+{
+  "schema_version": 1,
+  "report": "rubric",
+  "cases": 2,
+  "variants": 3,
+  "mean_spread": 0.155,
+  "max_spread": 0.214,
+  "widest_gap": 0.155,
+  "flagged": true,
+  "thresholds": {"...": "..."},
+  "rubrics": [{"rubric": "Answer must mention ...", "mean_score": 0.5}]
+}
+```
+
+`rubrics` keeps the input order and pairs each wording with its mean score,
+so a consumer can name the most and least generous phrasing rather than just
+report that a gap exists.
 
 ## `agree` and `atlas`
 
