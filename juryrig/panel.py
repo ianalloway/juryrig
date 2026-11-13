@@ -4,6 +4,7 @@ from __future__ import annotations
 import statistics
 from collections import Counter
 from dataclasses import dataclass, field
+from itertools import combinations
 from typing import Literal
 
 from .judge import Judge, PairwiseJudge
@@ -80,11 +81,7 @@ class Panel:
         if len(values) < 2:
             return PanelReport(scores=scores, pooled=pooled, spread=0.0, agreement=1.0)
 
-        diffs = [
-            abs(x - y)
-            for i, x in enumerate(values)
-            for y in values[i + 1:]
-        ]
+        diffs = (abs(x - y) for x, y in combinations(values, 2))
         return PanelReport(
             scores=scores,
             pooled=pooled,

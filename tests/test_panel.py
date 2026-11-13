@@ -1,3 +1,4 @@
+import statistics
 import unittest
 
 from juryrig import MockJudge, Panel
@@ -27,6 +28,27 @@ class PanelTest(unittest.TestCase):
         mean_pool = Panel(judges, pool="mean").evaluate(**scored)
         min_pool = Panel(judges, pool="min").evaluate(**scored)
         self.assertLessEqual(min_pool.pooled, mean_pool.pooled)
+
+    def test_agreement_matches_all_unordered_pairs(self):
+        for size in (1, 2, 3, 10):
+            judges = [
+                MockJudge(name=str(i), verbosity_bias=i / size)
+                for i in range(size)
+            ]
+            for pool in ("mean", "median", "min"):
+                with self.subTest(size=size, pool=pool):
+                    report = Panel(judges, pool=pool).evaluate(
+                        prompt="q", response=RESPONSE, rubric=RUBRIC
+                    )
+                    values = list(report.scores.values())
+                    diffs = [
+                        abs(x - y)
+                        for i, x in enumerate(values)
+                        for y in values[i + 1:]
+                    ]
+                    expected = 1.0 - statistics.fmean(diffs) if diffs else 1.0
+                    self.assertEqual(report.agreement, expected)
+                    self.assertEqual(report.spread, max(values) - min(values))
 
     def test_rejects_duplicate_names_and_empty(self):
         with self.assertRaises(ValueError):
