@@ -5,16 +5,17 @@ _Last updated 2026-10-31. This is a plan, not a promise. Items move when evidenc
 ## Where things stand
 
 - **PyPI:** 0.3.1 (2026-10-12): audits, panels, agreement matrix, disagreement atlas, calibration, `HttpJudge` key scoping.
-- **Merged on `main` but unreleased:** #38 (judges refuse HTTP redirects so API keys can't leak, SHA-pinned Actions, CodeQL) and #39 (reject NaN/∞ judge scores and audit thresholds). `CHANGELOG.md` `[Unreleased]` does not list them yet.
-- **Shipped in 0.3.2:** #41 (provider `compare()`, `verdict_consistency()`, `juryrig calibrate`).
+- **On `main`, version 0.3.2, not yet published to PyPI:** #38 (judges refuse HTTP redirects so API keys can't leak, SHA-pinned Actions, CodeQL), #39 (reject NaN/∞ judge scores and audit thresholds) and #41 (provider `compare()`, `verdict_consistency()`, `juryrig calibrate`). All three are listed under `[0.3.2]` in `CHANGELOG.md`. Tagging and publishing is the remaining step.
+- **Also on `main`, unreleased:** skipped-audit reasons (0.4.0 must-have #4) and the versioned JSON report schema (#5); see `[Unreleased]` in `CHANGELOG.md`.
 - **Open issues:** none.
 
 ## 0.3.2: security patch (ship first, small)
 
 #38 closes a credential-leak path, so it shouldn't wait for 0.4.0 features.
 
-- [ ] Add #38 and #39 to the CHANGELOG under `[0.3.2]` (Security / Fixed).
-- [ ] Bump `pyproject.toml` and `juryrig/__init__.py` to `0.3.2`, then tag and publish.
+- [x] Add #38 and #39 to the CHANGELOG under `[0.3.2]` (Security / Fixed).
+- [x] Bump `pyproject.toml` and `juryrig/__init__.py` to `0.3.2`.
+- [ ] Tag and publish 0.3.2 to PyPI.
 - [ ] Bump the HF Space pins (`hf-space/`, `hf-space-static/`) to `0.3.2`.
 
 ## 0.4.0: "every judge, every audit, from the CLI"
