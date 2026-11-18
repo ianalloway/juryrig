@@ -39,6 +39,12 @@ from .audits import (
 )
 from .calibration import brier_score, expected_calibration_error, reliability_table
 from .judge import Judge, Judgment, MockJudge, PairwiseJudge
+from .metering import (
+    MeteredJudge,
+    MeteredPairwiseJudge,
+    UsageReport,
+    metered,
+)
 from .panel import Panel, PanelReport, PanelVerdict
 from .suite import AuditSuiteReport, audit_suite
 
@@ -56,6 +62,8 @@ __all__ = [
     "ItemDisagreement",
     "Judge",
     "Judgment",
+    "MeteredJudge",
+    "MeteredPairwiseJudge",
     "MockJudge",
     "PairAgreement",
     "PairwiseJudge",
@@ -67,6 +75,7 @@ __all__ = [
     "RubricSensitivityReport",
     "SplitCluster",
     "Thresholds",
+    "UsageReport",
     "VerbosityBiasReport",
     "VerdictConsistencyReport",
     "agreement_matrix",
@@ -76,6 +85,7 @@ __all__ = [
     "disagreement_atlas",
     "disagreement_atlas_from_report",
     "expected_calibration_error",
+    "metered",
     "position_bias",
     "prompt_injection_bias",
     "reliability_table",

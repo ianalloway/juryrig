@@ -268,6 +268,35 @@ Like `verdict_consistency()`, this is not part of `audit_suite()`: it needs
 rubric variants the suite does not have, and its extra calls would shift
 measurements for judges whose behaviour depends on call order.
 
+## What will this audit cost?
+
+`audit_suite()` on N cases is roughly `4N` judge calls, and the suite's own
+demo makes 33 for three cases. Against a paid API that is worth knowing
+*before* you point it at a large case set. Wrap the judge first:
+
+```python
+from juryrig import audit_suite, metered
+
+judge = metered(my_judge)
+report = audit_suite(judge, cases, rubric)
+
+usage = judge.usage()
+usage.calls                    # judge() + compare() calls made
+usage.seconds                  # summed time inside those calls
+usage.projected_seconds(4000)  # rough estimate at the observed rate
+```
+
+`juryrig audit` reports this automatically, as a `usage` line and a `usage`
+object under `--json`.
+
+Calls that raise are still counted: a failed request cost time and may still
+have been billed. `seconds` is summed per call, so under `max_workers > 1` it
+is total work done rather than elapsed wall time.
+
+The wrapper only grows a `compare()` when the judge it wraps has one — a
+wrapper that always had one would make a score-only judge look pairwise and
+quietly undo the skipped-audit reporting below.
+
 ## A skipped audit is not a pass
 
 `audit_suite()` can only run the position audit against a judge with

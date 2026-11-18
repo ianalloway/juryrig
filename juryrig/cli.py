@@ -27,6 +27,7 @@ from .calibration import (
     reliability_table,
 )
 from .judge import Judge, MockJudge
+from .metering import metered
 from .suite import AuditSuiteReport, audit_suite
 
 
@@ -396,7 +397,7 @@ def main_audit(argv: list[str]) -> int:
         return 2
     try:
         rubric, cases, thresholds = load_cases(args.cases)
-        judge = build_judge(args.provider, args.model)
+        judge = metered(build_judge(args.provider, args.model))
         report = audit_suite(
             judge,
             cases,
@@ -410,10 +411,20 @@ def main_audit(argv: list[str]) -> int:
         return 2
 
     warn_skipped(report)
+    usage = judge.usage()
     if args.json:
-        print(_emit_json("audit", report_to_dict(report)))
+        payload = report_to_dict(report)
+        payload["usage"] = {
+            "calls": usage.calls,
+            "judge_calls": usage.judge_calls,
+            "compare_calls": usage.compare_calls,
+            "seconds": usage.seconds,
+            "seconds_per_call": usage.seconds_per_call,
+        }
+        print(_emit_json("audit", payload))
     else:
         print(report.summary())
+        print(f"usage      {usage.summary()}")
     return 1 if report.flagged else 0
 
 

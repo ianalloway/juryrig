@@ -57,6 +57,9 @@ exit code: `1` when `flagged` is true, `0` when false, `2` on bad input.
   why for each. A skipped audit is a coverage gap, not a pass — `flagged`
   can be `false` while part of the battery never executed, so check
   `skipped` as well as `flagged`. The CLI also prints a warning to stderr.
+- `usage` reports what the run cost: `calls`, `judge_calls`,
+  `compare_calls`, `seconds` and `seconds_per_call`. `seconds` is summed per
+  call, so with parallel workers it is total work done, not elapsed time.
 - Each entry under `audits` is `null` when that audit was skipped, otherwise
   the audit's own fields plus a derived `flagged`, and `flip_rate` for
   `position`. Each carries the `thresholds` it was judged against, so a

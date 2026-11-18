@@ -7,6 +7,13 @@ Notable changes to juryrig. Format loosely follows
 
 ### Added
 
+- `metered()` wraps any judge to count its `judge()` and `compare()` calls
+  and the time spent in them, so you can see what an audit costs before
+  running it against a paid API. `juryrig audit` reports it automatically.
+  Calls that raise are counted too. The wrapper only exposes `compare()`
+  when the wrapped judge has one, so metering cannot make a score-only judge
+  look pairwise and silently disable the position audit. (ROADMAP 0.4.0
+  should-have #8; multi-judge `agree`/`atlas` metering is still open.)
 - `rubric_sensitivity()` scores the same responses under several wordings of
   one rubric and measures the drift, with `mean_spread`, `max_spread`,
   per-wording `variant_means` and a `widest_gap` between the most and least
