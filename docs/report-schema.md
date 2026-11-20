@@ -73,6 +73,7 @@ exit code: `1` when `flagged` is true, `0` when false, `2` on bad input.
   "brier_score": 0.2672,
   "expected_calibration_error": 0.2812,
   "max_ece": 0.1,
+  "max_brier": null,
   "flagged": true,
   "reliability": [
     {"lower": 0.8, "upper": 1.0, "count": 4,
@@ -83,6 +84,9 @@ exit code: `1` when `flagged` is true, `0` when false, `2` on bad input.
 
 `gap` is `mean_score - accuracy`: positive means overconfident in that
 bucket, negative means underconfident. Buckets with no members are omitted.
+
+`max_brier` records the optional Brier score limit. Its default is null.
+`flagged` is true when either metric exceeds its enabled limit.
 
 ## `agree` and `atlas`
 

@@ -7,6 +7,8 @@ Notable changes to juryrig. Format loosely follows
 
 ### Added
 
+- The calibration CLI accepts an optional `--max-brier` gate for binary prediction error.
+
 - The audit, agreement and atlas commands accept JSONL case files with a shared rubric header.
 
 - `AuditSuiteReport.skipped_reasons` says *why* each skipped audit could not

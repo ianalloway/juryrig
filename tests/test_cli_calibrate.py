@@ -34,6 +34,26 @@ class Harness(unittest.TestCase):
 
 
 class ExitCodeTest(Harness):
+    def test_brier_gate_distinguishes_prediction_error_from_calibration(self):
+        for limit, expected in (("0.2", 1), ("0.25", 0)):
+            with self.subTest(limit=limit):
+                code, out, err = self.run_cli(
+                    WELL_CALIBRATED, "--max-brier", limit, "--json"
+                )
+                self.assertEqual((code, err), (expected, ""))
+                report = json.loads(out)
+                self.assertEqual(report["expected_calibration_error"], 0)
+                self.assertEqual(report["brier_score"], 0.25)
+                self.assertEqual(report["max_brier"], float(limit))
+                self.assertEqual(report["flagged"], bool(expected))
+
+    def test_invalid_brier_limits(self):
+        for limit in ("-0.1", "1.001", "nan", "inf"):
+            with self.subTest(limit=limit):
+                code, _, err = self.run_cli(WELL_CALIBRATED, "--max-brier", limit)
+                self.assertEqual(code, 2)
+                self.assertIn("--max-brier", err)
+
     def test_miscalibrated_judge_fails(self):
         code, out, _ = self.run_cli(MISCALIBRATED)
 
