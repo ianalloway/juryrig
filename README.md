@@ -268,6 +268,26 @@ Like `verdict_consistency()`, this is not part of `audit_suite()`: it needs
 rubric variants the suite does not have, and its extra calls would shift
 measurements for judges whose behaviour depends on call order.
 
+## One page to share
+
+`juryrig report` runs every audit the case file supports and emits a single
+page — Markdown for a PR comment, HTML to share:
+
+```bash
+juryrig report cases.json              # markdown
+juryrig report cases.json --fmt html   # self-contained page
+```
+
+It includes the bias/consistency suite always, rubric sensitivity when the
+file has a `"rubrics"` list, and calibration when it has `"scores"` and
+`"labels"`. Anything it could not run is listed under **Omitted** with the
+reason — an omitted audit is not a passing one, the same principle as
+`skipped_reasons`.
+
+The HTML carries its own styles and makes no third-party requests, so it
+opens offline. Case-file content is escaped, so a report you share cannot
+carry script from the file it was generated from.
+
 ## What will this audit cost?
 
 `audit_suite()` on N cases is roughly `4N` judge calls, and the suite's own

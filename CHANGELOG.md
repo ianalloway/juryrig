@@ -7,6 +7,13 @@ Notable changes to juryrig. Format loosely follows
 
 ### Added
 
+- `juryrig report` combines every audit a case file supports into one page,
+  as Markdown for a PR comment or a self-contained HTML page to share. The
+  suite always runs; rubric sensitivity and calibration run when the file
+  carries what they need, and anything that could not run is listed as
+  omitted with the reason. HTML escapes case-file content, so a shared
+  report cannot carry injected script, and makes no third-party requests.
+  (ROADMAP 0.4.0 should-have #9.)
 - `metered()` wraps any judge to count its `judge()` and `compare()` calls
   and the time spent in them, so you can see what an audit costs before
   running it against a paid API. `juryrig audit` reports it automatically.

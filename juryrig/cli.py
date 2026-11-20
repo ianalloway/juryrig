@@ -28,6 +28,7 @@ from .calibration import (
 )
 from .judge import Judge, MockJudge
 from .metering import metered
+from .onepager import OnePager, Section
 from .suite import AuditSuiteReport, audit_suite
 
 
@@ -885,6 +886,128 @@ def main_rubric(argv: list[str]) -> int:
               else "PASSED: wording does not move this judge")
     return 1 if report.flagged else 0
 
+
+def build_report_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="juryrig report",
+        description="One page combining every audit this case file supports: "
+        "the suite, plus rubric sensitivity and calibration when the file "
+        "carries what they need. Exits 1 if anything is flagged, 2 on bad "
+        "input.",
+    )
+    parser.add_argument("cases", type=Path, help="JSON or JSONL case file.")
+    parser.add_argument(
+        "--provider", default="mock", choices=("mock", "anthropic", "openai"),
+        help="Judge to audit (default: mock).",
+    )
+    parser.add_argument("--model", help="Model id for the chosen provider.")
+    parser.add_argument(
+        "--fmt", default="markdown", choices=("markdown", "html"),
+        help="markdown for a PR comment (default), html to share.",
+    )
+    parser.add_argument(
+        "--runs", type=int, default=5, help="Self-consistency repeats."
+    )
+    parser.add_argument(
+        "--workers", type=int, default=1, help="Parallel judge calls."
+    )
+    return parser
+
+
+def main_report(argv: list[str]) -> int:
+    args = build_report_parser().parse_args(argv)
+    for name, value in (("--runs", args.runs), ("--workers", args.workers)):
+        if value < 1:
+            print(f"juryrig: {name} must be at least 1", file=sys.stderr)
+            return 2
+    try:
+        rubric, cases, thresholds = load_cases(args.cases)
+        # The extra sections read keys load_cases() does not return. A JSONL
+        # file has no single object to read them from, so they are omitted.
+        raw: dict = {}
+        if args.cases.suffix != ".jsonl":
+            loaded = json.loads(args.cases.read_text())
+            if isinstance(loaded, dict):
+                raw = loaded
+        judge = metered(build_judge(args.provider, args.model))
+        page = OnePager(judge=judge.name)
+
+        suite = audit_suite(
+            judge, cases, rubric, runs=args.runs,
+            thresholds=thresholds, max_workers=args.workers,
+        )
+        page.sections.append(Section(
+            title="Bias and consistency suite",
+            flagged=suite.flagged,
+            lines=suite.summary().splitlines(),
+        ))
+        page.omitted.update(
+            {f"{name} audit": why for name, why in suite.skipped_reasons.items()}
+        )
+
+        rubrics = raw.get("rubrics") if isinstance(raw, dict) else None
+        if isinstance(rubrics, list) and len(rubrics) >= 2:
+            pairs = [(prompt, good) for prompt, good, _ in cases]
+            rs = rubric_sensitivity(
+                judge, pairs, rubrics,
+                thresholds=thresholds, max_workers=args.workers,
+            )
+            page.sections.append(Section(
+                title="Rubric sensitivity",
+                flagged=rs.flagged,
+                note="Scores under each wording; a wide gap means the phrasing "
+                     "moves the verdict.",
+                lines=[
+                    f"mean_spread {rs.mean_spread:.3f}",
+                    f"max_spread  {rs.max_spread:.3f}",
+                    f"widest_gap  {rs.widest_gap:.3f}",
+                    *(
+                        f"  {mean:.3f}  {wording[:60]}"
+                        for wording, mean in zip(rubrics, rs.variant_means)
+                    ),
+                ],
+            ))
+        else:
+            page.omitted["Rubric sensitivity"] = (
+                'the case file has no "rubrics" list of two or more wordings'
+            )
+
+        labels = raw.get("labels") if isinstance(raw, dict) else None
+        scores = raw.get("scores") if isinstance(raw, dict) else None
+        if isinstance(scores, list) and isinstance(labels, list) and scores:
+            bins = raw.get("bins", 10)
+            ece = expected_calibration_error(scores, labels, bins)
+            page.sections.append(Section(
+                title="Calibration",
+                flagged=ece > 0.1,
+                note="Against human labels in the case file.",
+                lines=[
+                    f"brier_score                {brier_score(scores, labels):.4f}",
+                    f"expected_calibration_error {ece:.4f}",
+                    "",
+                    *format_reliability(
+                        reliability_table(scores, labels, bins)
+                    ).splitlines(),
+                ],
+            ))
+        else:
+            page.omitted["Calibration"] = (
+                'the case file carries no "scores" and "labels" to compare'
+            )
+
+        usage = judge.usage()
+        page.sections.append(Section(
+            title="Cost",
+            flagged=False,
+            lines=[usage.summary()],
+        ))
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"juryrig: {exc}", file=sys.stderr)
+        return 2
+
+    print(page.to_html() if args.fmt == "html" else page.to_markdown())
+    return 1 if page.flagged else 0
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "agree":
@@ -895,6 +1018,8 @@ def main(argv: list[str] | None = None) -> int:
         return main_calibrate(argv[1:])
     if argv and argv[0] == "rubric":
         return main_rubric(argv[1:])
+    if argv and argv[0] == "report":
+        return main_report(argv[1:])
     return main_audit(argv)
 
 
