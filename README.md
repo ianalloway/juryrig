@@ -308,6 +308,15 @@ To audit a live provider instead, set its API key and run
 `juryrig cases.json --provider anthropic --json` (makes billable API calls).
 
 The case file is `{"rubric": ..., "cases": [{"prompt", "good", "weak"}, ...]}`.
+For line-delimited data, save the rubric on the first nonblank line of a
+`.jsonl` file and put one case on each following line. The header also accepts
+`thresholds` and `agreement_thresholds`. All three commands accept this format.
+
+```jsonl
+{"rubric":"Mention sunlight and chlorophyll."}
+{"prompt":"How do plants make food?","good":"Chlorophyll absorbs sunlight.","weak":"They eat soil."}
+```
+
 The command exits `1` when the judge is flagged and `2` on bad input, so a CI
 step is one line. The equivalent module entry point is `python -m juryrig cases.json`
 (after installation, or from the repository root).

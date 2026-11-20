@@ -98,50 +98,79 @@ def _emit_json(report: str, payload: dict) -> str:
     )
 
 
-def load_cases(path: Path) -> tuple[str, list[tuple[str, str, str]], Thresholds]:
-    """Read a case file: {"rubric": str, "cases": [...], "thresholds": {...}}."""
-    try:
-        raw = json.loads(path.read_text())
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"{path} is not valid JSON: {exc}") from exc
-    if not isinstance(raw, dict):
-        raise ValueError(f"{path} must contain a JSON object.")
+def _parse_case(entry: object, location: str) -> tuple[str, str, str]:
+    if not isinstance(entry, dict):
+        raise ValueError(f"{location} must be an object.")
+    missing = [
+        key for key in ("prompt", "good", "weak")
+        if not isinstance(entry.get(key), str) or not entry[key].strip()
+    ]
+    if missing:
+        raise ValueError(f"{location} is missing non-empty {', '.join(missing)}.")
+    return entry["prompt"], entry["good"], entry["weak"]
+
+
+def _read_case_file(path: Path) -> tuple[dict, list[tuple[str, str, str]]]:
+    if path.suffix.lower() == ".jsonl":
+        header = None
+        cases = []
+        with path.open(encoding="utf-8") as stream:
+            for number, line in enumerate(stream, start=1):
+                if not line.strip():
+                    continue
+                location = f"{path} line {number}"
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"{location} is not valid JSON: {exc.msg}"
+                    ) from exc
+                if header is None:
+                    if (
+                        not isinstance(row, dict) or "rubric" not in row
+                        or any(k in row for k in ("cases", "prompt", "good", "weak"))
+                    ):
+                        raise ValueError(f"{location} must be a rubric header object.")
+                    header = row
+                else:
+                    cases.append(_parse_case(row, location))
+        if header is None:
+            raise ValueError(f"{path} needs a rubric header.")
+        raw = header
+    else:
+        try:
+            raw = json.loads(path.read_text())
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{path} is not valid JSON: {exc}") from exc
+        if not isinstance(raw, dict):
+            raise ValueError(f"{path} must contain a JSON object.")
+        entries = raw.get("cases")
+        if not isinstance(entries, list):
+            raise ValueError(f"{path} needs a non-empty list 'cases'.")
+        cases = [_parse_case(row, f"{path} case {i}") for i, row in enumerate(entries)]
 
     rubric = raw.get("rubric")
     if not isinstance(rubric, str) or not rubric.strip():
         raise ValueError(f"{path} needs a non-empty string 'rubric'.")
+    if not cases:
+        raise ValueError(f"{path} needs at least one case.")
+    return raw, cases
 
-    entries = raw.get("cases")
-    if not isinstance(entries, list) or not entries:
-        raise ValueError(f"{path} needs a non-empty list 'cases'.")
 
-    cases = []
-    for i, entry in enumerate(entries):
-        if not isinstance(entry, dict):
-            raise ValueError(f"{path} case {i} must be an object.")
-        missing = [k for k in ("prompt", "good", "weak") if not entry.get(k)]
-        if missing:
-            raise ValueError(
-                f"{path} case {i} is missing non-empty {', '.join(missing)}."
-            )
-        cases.append((entry["prompt"], entry["good"], entry["weak"]))
-    return rubric, cases, _load_thresholds(raw, path)
+def load_cases(path: Path) -> tuple[str, list[tuple[str, str, str]], Thresholds]:
+    """Load the rubric, cases and audit thresholds from JSON or JSONL."""
+    raw, cases = _read_case_file(path)
+    return raw["rubric"], cases, _load_thresholds(raw, path)
 
 
 def load_agreement_cases(
     path: Path,
 ) -> tuple[str, list[tuple[str, str]], AgreementThresholds]:
     """Load rubric + (prompt, good) pairs for the agreement-matrix audit."""
-    try:
-        raw = json.loads(path.read_text())
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"{path} is not valid JSON: {exc}") from exc
-    if not isinstance(raw, dict):
-        raise ValueError(f"{path} must contain a JSON object.")
-
-    rubric, triples, _ = load_cases(path)
+    raw, triples = _read_case_file(path)
+    _load_thresholds(raw, path)
     pairs = [(prompt, good) for prompt, good, _ in triples]
-    return rubric, pairs, _load_agreement_thresholds(raw, path)
+    return raw["rubric"], pairs, _load_agreement_thresholds(raw, path)
 
 
 def build_judge(provider: str, model: str | None) -> Judge:
@@ -271,7 +300,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "cases",
         type=Path,
-        help='JSON file: {"rubric": ..., "cases": [{"prompt","good","weak"}, ...]}',
+        help="Case file (.json document or .jsonl with a rubric header).",
     )
     parser.add_argument(
         "--provider",
@@ -311,7 +340,7 @@ def _build_multi_judge_parser(
     parser.add_argument(
         "cases",
         type=Path,
-        help='JSON case file (uses each case\'s "good" response).',
+        help="JSON or JSONL case file (uses each case's good response).",
     )
     parser.add_argument(
         "--provider",

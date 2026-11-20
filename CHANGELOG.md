@@ -7,6 +7,8 @@ Notable changes to juryrig. Format loosely follows
 
 ### Added
 
+- The audit, agreement and atlas commands accept JSONL case files with a shared rubric header.
+
 - `AuditSuiteReport.skipped_reasons` says *why* each skipped audit could not
   run, and the CLI warns on stderr when a judge was not fully audited. A
   skipped audit is a coverage gap, not a pass: `flagged` could read `false`
