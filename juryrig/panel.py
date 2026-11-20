@@ -62,7 +62,7 @@ class Panel:
         names = [j.name for j in judges]
         if len(set(names)) != len(names):
             raise ValueError("Judge names must be unique within a panel.")
-        self.judges = judges
+        self.judges = list(judges)
         self.pool = pool
 
     def evaluate(self, *, prompt: str, response: str, rubric: str) -> PanelReport:

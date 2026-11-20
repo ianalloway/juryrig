@@ -115,7 +115,7 @@ print(f"flip rate: {bias.flip_rate:.0%}  flagged: {bias.flagged}")
 injection = prompt_injection_bias(judge, [("Weak answer prompt", "vague answer")], rubric)
 print(f"injection lift: {injection.mean_delta:+.3f}  flagged: {injection.flagged}")
 
-# 2. Use a panel instead of a single judge
+# 2. The panel copies the supplied list of judges when constructed
 panel = Panel([MockJudge(name="primary"), MockJudge(name="baseline")])
 report = panel.evaluate(prompt="How do plants make food?",
                         response=cases[0][1],
