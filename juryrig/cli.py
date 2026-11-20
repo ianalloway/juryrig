@@ -99,50 +99,79 @@ def _emit_json(report: str, payload: dict) -> str:
     )
 
 
-def load_cases(path: Path) -> tuple[str, list[tuple[str, str, str]], Thresholds]:
-    """Read a case file: {"rubric": str, "cases": [...], "thresholds": {...}}."""
-    try:
-        raw = json.loads(path.read_text())
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"{path} is not valid JSON: {exc}") from exc
-    if not isinstance(raw, dict):
-        raise ValueError(f"{path} must contain a JSON object.")
+def _parse_case(entry: object, location: str) -> tuple[str, str, str]:
+    if not isinstance(entry, dict):
+        raise ValueError(f"{location} must be an object.")
+    missing = [
+        key for key in ("prompt", "good", "weak")
+        if not isinstance(entry.get(key), str) or not entry[key].strip()
+    ]
+    if missing:
+        raise ValueError(f"{location} is missing non-empty {', '.join(missing)}.")
+    return entry["prompt"], entry["good"], entry["weak"]
+
+
+def _read_case_file(path: Path) -> tuple[dict, list[tuple[str, str, str]]]:
+    if path.suffix.lower() == ".jsonl":
+        header = None
+        cases = []
+        with path.open(encoding="utf-8") as stream:
+            for number, line in enumerate(stream, start=1):
+                if not line.strip():
+                    continue
+                location = f"{path} line {number}"
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"{location} is not valid JSON: {exc.msg}"
+                    ) from exc
+                if header is None:
+                    if (
+                        not isinstance(row, dict) or "rubric" not in row
+                        or any(k in row for k in ("cases", "prompt", "good", "weak"))
+                    ):
+                        raise ValueError(f"{location} must be a rubric header object.")
+                    header = row
+                else:
+                    cases.append(_parse_case(row, location))
+        if header is None:
+            raise ValueError(f"{path} needs a rubric header.")
+        raw = header
+    else:
+        try:
+            raw = json.loads(path.read_text())
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{path} is not valid JSON: {exc}") from exc
+        if not isinstance(raw, dict):
+            raise ValueError(f"{path} must contain a JSON object.")
+        entries = raw.get("cases")
+        if not isinstance(entries, list):
+            raise ValueError(f"{path} needs a non-empty list 'cases'.")
+        cases = [_parse_case(row, f"{path} case {i}") for i, row in enumerate(entries)]
 
     rubric = raw.get("rubric")
     if not isinstance(rubric, str) or not rubric.strip():
         raise ValueError(f"{path} needs a non-empty string 'rubric'.")
+    if not cases:
+        raise ValueError(f"{path} needs at least one case.")
+    return raw, cases
 
-    entries = raw.get("cases")
-    if not isinstance(entries, list) or not entries:
-        raise ValueError(f"{path} needs a non-empty list 'cases'.")
 
-    cases = []
-    for i, entry in enumerate(entries):
-        if not isinstance(entry, dict):
-            raise ValueError(f"{path} case {i} must be an object.")
-        missing = [k for k in ("prompt", "good", "weak") if not entry.get(k)]
-        if missing:
-            raise ValueError(
-                f"{path} case {i} is missing non-empty {', '.join(missing)}."
-            )
-        cases.append((entry["prompt"], entry["good"], entry["weak"]))
-    return rubric, cases, _load_thresholds(raw, path)
+def load_cases(path: Path) -> tuple[str, list[tuple[str, str, str]], Thresholds]:
+    """Load the rubric, cases and audit thresholds from JSON or JSONL."""
+    raw, cases = _read_case_file(path)
+    return raw["rubric"], cases, _load_thresholds(raw, path)
 
 
 def load_agreement_cases(
     path: Path,
 ) -> tuple[str, list[tuple[str, str]], AgreementThresholds]:
     """Load rubric + (prompt, good) pairs for the agreement-matrix audit."""
-    try:
-        raw = json.loads(path.read_text())
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"{path} is not valid JSON: {exc}") from exc
-    if not isinstance(raw, dict):
-        raise ValueError(f"{path} must contain a JSON object.")
-
-    rubric, triples, _ = load_cases(path)
+    raw, triples = _read_case_file(path)
+    _load_thresholds(raw, path)
     pairs = [(prompt, good) for prompt, good, _ in triples]
-    return rubric, pairs, _load_agreement_thresholds(raw, path)
+    return raw["rubric"], pairs, _load_agreement_thresholds(raw, path)
 
 
 def build_judge(provider: str, model: str | None) -> Judge:
@@ -272,7 +301,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "cases",
         type=Path,
-        help='JSON file: {"rubric": ..., "cases": [{"prompt","good","weak"}, ...]}',
+        help="Case file (.json document or .jsonl with a rubric header).",
     )
     parser.add_argument(
         "--provider",
@@ -312,7 +341,7 @@ def _build_multi_judge_parser(
     parser.add_argument(
         "cases",
         type=Path,
-        help='JSON case file (uses each case\'s "good" response).',
+        help="JSON or JSONL case file (uses each case's good response).",
     )
     parser.add_argument(
         "--provider",
@@ -594,7 +623,7 @@ def build_calibrate_parser() -> argparse.ArgumentParser:
         prog="juryrig calibrate",
         description="Score a judge's calibration against human labels: Brier "
         "score, expected calibration error, and a reliability table. Exits 1 "
-        "if ECE exceeds --max-ece, 2 on bad input.",
+        "if a score exceeds its configured limit, 2 on bad input.",
     )
     parser.add_argument(
         "labels",
@@ -607,6 +636,10 @@ def build_calibrate_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.1,
         help="Fail when expected calibration error exceeds this (default: 0.1).",
+    )
+    parser.add_argument(
+        "--max-brier", type=float,
+        help="Also fail if the binary Brier score exceeds this limit (0 to 1).",
     )
     parser.add_argument(
         "--bins", type=int, help="Override the bin count from the file."
@@ -626,6 +659,9 @@ def main_calibrate(argv: list[str]) -> int:
     if args.max_ece < 0:
         print("juryrig: --max-ece must be non-negative", file=sys.stderr)
         return 2
+    if args.max_brier is not None and not 0 <= args.max_brier <= 1:
+        print("juryrig: --max-brier must be between 0 and 1", file=sys.stderr)
+        return 2
     try:
         scores, labels, bins = load_labelled_scores(args.labels)
         if args.bins is not None:
@@ -637,7 +673,8 @@ def main_calibrate(argv: list[str]) -> int:
         print(f"juryrig: {exc}", file=sys.stderr)
         return 2
 
-    flagged = ece > args.max_ece
+    brier_failed = args.max_brier is not None and brier > args.max_brier
+    flagged = ece > args.max_ece or brier_failed
     if args.json:
         print(_emit_json("calibrate", {
             "pairs": len(scores),
@@ -645,6 +682,7 @@ def main_calibrate(argv: list[str]) -> int:
             "brier_score": brier,
             "expected_calibration_error": ece,
             "max_ece": args.max_ece,
+            "max_brier": args.max_brier,
             "flagged": flagged,
             "reliability": [
                 {
@@ -657,13 +695,19 @@ def main_calibrate(argv: list[str]) -> int:
         }))
     else:
         print(f"pairs: {len(scores)}  bins: {bins}")
-        print(f"brier_score                {brier:.4f}")
+        limit = f"  (max {args.max_brier:.4f})" if args.max_brier is not None else ""
+        print(f"brier_score                {brier:.4f}{limit}")
         print(f"expected_calibration_error {ece:.4f}  (max {args.max_ece:.4f})")
         print()
         print(format_reliability(table, args.fmt))
         print()
-        print("FLAGGED: judge is miscalibrated" if flagged
-              else "PASSED: calibration within tolerance")
+        if brier_failed:
+            message = ("Brier score and ECE exceed limits" if ece > args.max_ece
+                       else "Brier score exceeds limit")
+            print(f"FLAGGED: {message}")
+        else:
+            print("FLAGGED: judge is miscalibrated" if flagged
+                  else "PASSED: calibration within tolerance")
     return 1 if flagged else 0
 
 

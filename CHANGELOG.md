@@ -22,8 +22,10 @@ Notable changes to juryrig. Format loosely follows
   whether two wordings are equivalent is a domain judgement. Kept out of
   `audit_suite()`, like `verdict_consistency()`. (ROADMAP 0.4.0 should-have
   #6.)
-
-### Added
+- The calibration CLI accepts an optional `--max-brier` gate for binary
+  prediction error.
+- The audit, agreement and atlas commands accept JSONL case files with a
+  shared rubric header. (ROADMAP 0.4.0 should-have #7.)
 
 - `AuditSuiteReport.skipped_reasons` says *why* each skipped audit could not
   run, and the CLI warns on stderr when a judge was not fully audited. A
