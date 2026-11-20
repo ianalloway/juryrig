@@ -166,6 +166,50 @@ class LoadCasesTest(unittest.TestCase):
         self.assertEqual(thresholds, DEFAULT_THRESHOLDS)
 
 
+class JsonlCaseFileTests(unittest.TestCase):
+    def test_same_reports_for_json_and_jsonl(self):
+        header = {
+            "rubric": CASE_FILE["rubric"],
+            "thresholds": {"position_flip_rate": 1.0},
+            "agreement_thresholds": {"min_within_eps_rate": 0.0},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            plain = Path(tmp) / "cases.json"
+            lines = Path(tmp) / "cases.jsonl"
+            plain.write_text(json.dumps({**header, "cases": CASE_FILE["cases"]}))
+            records = [header, *CASE_FILE["cases"]]
+            lines.write_text("\n\n".join(map(json.dumps, records)))
+            for command in ([], ["agree"], ["atlas"]):
+                with self.subTest(command=command):
+                    reports = []
+                    for path in (plain, lines):
+                        output = io.StringIO()
+                        with redirect_stdout(output):
+                            code = main([*command, str(path), "--json"])
+                        self.assertIn(code, (0, 1))
+                        reports.append(json.loads(output.getvalue()))
+                    self.assertEqual(*reports)
+
+    def test_bad_jsonl_fails_with_location(self):
+        header = '{"rubric":"score"}\n'
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "cases.jsonl"
+            for data, message in (
+                ("", "header"),
+                (header, "at least one case"),
+                ('{"cases":[]}\n', "line 1"),
+                ('{"rubric":"r","prompt":"p","good":"g","weak":"w"}', "line 1"),
+                (header + "\n{", "line 3"),
+                (header + '{"prompt":"q"}', "line 2"),
+            ):
+                with self.subTest(data=data):
+                    path.write_text(data)
+                    err = io.StringIO()
+                    with redirect_stderr(err):
+                        self.assertEqual(main([str(path)]), 2)
+                    self.assertIn(message, err.getvalue())
+
+
 class AgreeCliTest(CliHarness):
     def test_identical_seeds_pass(self):
         # Same seed → identical MockJudge scores → perfect concordance.
