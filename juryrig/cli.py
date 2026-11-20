@@ -612,7 +612,7 @@ def build_calibrate_parser() -> argparse.ArgumentParser:
         prog="juryrig calibrate",
         description="Score a judge's calibration against human labels: Brier "
         "score, expected calibration error, and a reliability table. Exits 1 "
-        "if ECE exceeds --max-ece, 2 on bad input.",
+        "if a score exceeds its configured limit, 2 on bad input.",
     )
     parser.add_argument(
         "labels",
@@ -625,6 +625,10 @@ def build_calibrate_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.1,
         help="Fail when expected calibration error exceeds this (default: 0.1).",
+    )
+    parser.add_argument(
+        "--max-brier", type=float,
+        help="Also fail if the binary Brier score exceeds this limit (0 to 1).",
     )
     parser.add_argument(
         "--bins", type=int, help="Override the bin count from the file."
@@ -644,6 +648,9 @@ def main_calibrate(argv: list[str]) -> int:
     if args.max_ece < 0:
         print("juryrig: --max-ece must be non-negative", file=sys.stderr)
         return 2
+    if args.max_brier is not None and not 0 <= args.max_brier <= 1:
+        print("juryrig: --max-brier must be between 0 and 1", file=sys.stderr)
+        return 2
     try:
         scores, labels, bins = load_labelled_scores(args.labels)
         if args.bins is not None:
@@ -655,7 +662,8 @@ def main_calibrate(argv: list[str]) -> int:
         print(f"juryrig: {exc}", file=sys.stderr)
         return 2
 
-    flagged = ece > args.max_ece
+    brier_failed = args.max_brier is not None and brier > args.max_brier
+    flagged = ece > args.max_ece or brier_failed
     if args.json:
         print(_emit_json("calibrate", {
             "pairs": len(scores),
@@ -663,6 +671,7 @@ def main_calibrate(argv: list[str]) -> int:
             "brier_score": brier,
             "expected_calibration_error": ece,
             "max_ece": args.max_ece,
+            "max_brier": args.max_brier,
             "flagged": flagged,
             "reliability": [
                 {
@@ -675,13 +684,19 @@ def main_calibrate(argv: list[str]) -> int:
         }))
     else:
         print(f"pairs: {len(scores)}  bins: {bins}")
-        print(f"brier_score                {brier:.4f}")
+        limit = f"  (max {args.max_brier:.4f})" if args.max_brier is not None else ""
+        print(f"brier_score                {brier:.4f}{limit}")
         print(f"expected_calibration_error {ece:.4f}  (max {args.max_ece:.4f})")
         print()
         print(format_reliability(table, args.fmt))
         print()
-        print("FLAGGED: judge is miscalibrated" if flagged
-              else "PASSED: calibration within tolerance")
+        if brier_failed:
+            message = ("Brier score and ECE exceed limits" if ece > args.max_ece
+                       else "Brier score exceeds limit")
+            print(f"FLAGGED: {message}")
+        else:
+            print("FLAGGED: judge is miscalibrated" if flagged
+                  else "PASSED: calibration within tolerance")
     return 1 if flagged else 0
 
 def main(argv: list[str] | None = None) -> int:

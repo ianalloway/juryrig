@@ -432,6 +432,7 @@ the bias audits:
 ```bash
 juryrig calibrate labels.json                  # exits 1 if ECE > 0.1
 juryrig calibrate labels.json --max-ece 0.05   # stricter
+juryrig calibrate labels.json --max-brier 0.2  # also limit mean squared prediction error
 juryrig calibrate labels.json --json           # machine-readable
 ```
 
