@@ -21,6 +21,13 @@ class PanelTest(unittest.TestCase):
         self.assertLess(report.agreement, 1.0)
         self.assertGreater(report.spread, 0.0)
 
+    def test_panel_keeps_validated_judges_when_caller_reuses_list(self):
+        judges = [MockJudge(name="original")]
+        panel = Panel(judges)
+        judges.clear()
+        report = panel.evaluate(prompt="q", response=RESPONSE, rubric=RUBRIC)
+        self.assertEqual(list(report.scores), ["original"])
+
     def test_pooling_modes(self):
         judges = [MockJudge(name="fair"), MockJudge(name="windbag", verbosity_bias=0.9)]
         scored = {"prompt": "q", "response": RESPONSE, "rubric": RUBRIC}
