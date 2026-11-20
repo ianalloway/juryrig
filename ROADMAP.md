@@ -43,7 +43,7 @@ Theme: close the gaps where a headline feature is missing for some judges or can
 
 ### Could have (0.5.0 candidates)
 
-- A pytest plugin (`juryrig.pytest`) exposing a fixture and markers that fail a test when a judge crosses thresholds.
+- ~~A pytest plugin exposing fixtures and a marker that fail a test when a judge crosses thresholds~~ **done** as `juryrig.pytest_plugin`.
 - Async judges (`ajudge` / `acompare`) for high-throughput panels.
 - An inter-annotator view that treats human labelers like judges in the agreement matrix and atlas.
 

@@ -7,6 +7,13 @@ Notable changes to juryrig. Format loosely follows
 
 ### Added
 
+- A pytest plugin, registered on install via the `pytest11` entry point.
+  `assert_judge_clean` audits a judge and fails the test with the audits that
+  flagged and their numbers; `judge_audit` returns the report without
+  asserting; `@pytest.mark.juryrig(...)` overrides thresholds per test, and a
+  typo'd threshold name fails loudly rather than leaving the strict default
+  silently in force. pytest remains a test-time dependency — nothing in the
+  library imports the plugin. (ROADMAP 0.5.0 candidate.)
 - `juryrig report` combines every audit a case file supports into one page,
   as Markdown for a PR comment or a self-contained HTML page to share. The
   suite always runs; rubric sensitivity and calibration run when the file

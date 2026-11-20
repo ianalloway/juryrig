@@ -268,6 +268,27 @@ Like `verdict_consistency()`, this is not part of `audit_suite()`: it needs
 rubric variants the suite does not have, and its extra calls would shift
 measurements for judges whose behaviour depends on call order.
 
+## Gating a pytest suite
+
+Installing juryrig registers a pytest plugin, so a judge can be a test:
+
+```python
+def test_our_judge_is_fair(assert_judge_clean):
+    assert_judge_clean(our_judge, cases, rubric)
+
+@pytest.mark.juryrig(verbosity_mean_delta=0.1)   # looser, per test
+def test_tolerant(assert_judge_clean):
+    assert_judge_clean(wordy_judge, cases, rubric)
+```
+
+A failure names the audits that flagged and prints the numbers, so a red
+test says what is wrong with the judge. `judge_audit` is the same thing
+without the assertion, returning the report. Pass `require_full=True` to
+also fail when an audit could not run.
+
+pytest stays a test-time dependency: nothing in the library imports the
+plugin, so `import juryrig` still needs no third-party package.
+
 ## One page to share
 
 `juryrig report` runs every audit the case file supports and emits a single
