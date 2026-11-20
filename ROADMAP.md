@@ -37,8 +37,8 @@ Theme: close the gaps where a headline feature is missing for some judges or can
 | # | Item | Why |
 |---|---|---|
 | 6 | ~~Rubric-sensitivity audit: paraphrase the rubric and measure score drift~~ **done** | Rubric wording is a hidden degree of freedom in most judge setups |
-| 7 | JSONL input and streaming output for `audit` / `agree` / `atlas` | Real eval sets are large, and line-delimited data is what scoring runs emit |
-| 8 | ~~Cost and latency accounting per judge (`calls`, `seconds`)~~ **done for `audit`** via `metered()`; multi-judge `agree`/`atlas` and token counts still open | Lets you see what an audit costs before running it on a paid API |
+| 7 | ~~JSONL input for `audit` / `agree` / `atlas`~~ **done** (#55); streaming output still open | Real eval sets are large, and line-delimited data is what scoring runs emit |
+| 8 | ~~Cost and latency accounting per judge (`calls`, `seconds`)~~ **done** via `metered()`, per judge for `agree`/`atlas`; token counts still open | Lets you see what an audit costs before running it on a paid API |
 | 9 | Markdown/HTML one-page report (`--fmt html`) that combines suite, atlas, and calibration | Something to drop into a PR comment or share with stakeholders |
 
 ### Could have (0.5.0 candidates)

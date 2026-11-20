@@ -13,7 +13,9 @@ Notable changes to juryrig. Format loosely follows
   Calls that raise are counted too. The wrapper only exposes `compare()`
   when the wrapped judge has one, so metering cannot make a score-only judge
   look pairwise and silently disable the position audit. (ROADMAP 0.4.0
-  should-have #8; multi-judge `agree`/`atlas` metering is still open.)
+  should-have #8.) `juryrig agree` and `juryrig atlas` report usage per
+  judge rather than one total, because a panel's cost is per judge and a
+  single sum would hide the slow or retrying one.
 - `rubric_sensitivity()` scores the same responses under several wordings of
   one rubric and measures the drift, with `mean_spread`, `max_spread`,
   per-wording `variant_means` and a `widest_gap` between the most and least

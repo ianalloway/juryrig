@@ -114,6 +114,11 @@ report that a gap exists.
 
 ## `agree` and `atlas`
 
+Both carry a `usage` object keyed by judge name, each with `calls`,
+`judge_calls`, `compare_calls`, `seconds` and `seconds_per_call`. Cost is
+reported per judge, not as one total, so a slow or retrying judge is named.
+
+
 These wrap `AgreementMatrixReport.to_dict()` and the atlas's `to_dict()`
 respectively, under the same two identifying fields. See the README sections
 on the agreement matrix and the disagreement atlas for their contents.

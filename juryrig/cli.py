@@ -271,6 +271,39 @@ def warn_skipped(report: AuditSuiteReport) -> None:
     )
 
 
+
+def per_judge_usage(judges: list[Judge]) -> dict:
+    """Usage for each metered judge in a panel, keyed by name.
+
+    A panel's cost is per judge, not one total: one slow or retrying judge is
+    the thing you want named, and a single sum would hide it.
+    """
+    usage = {}
+    for judge in judges:
+        report = judge.usage()
+        usage[judge.name] = {
+            "calls": report.calls,
+            "judge_calls": report.judge_calls,
+            "compare_calls": report.compare_calls,
+            "seconds": report.seconds,
+            "seconds_per_call": report.seconds_per_call,
+        }
+    return usage
+
+
+def format_usage_table(usage: dict) -> str:
+    """One line per judge, widest-first, so the expensive one stands out."""
+    rows = sorted(usage.items(), key=lambda kv: -kv[1]["seconds"])
+    width = max((len(name) for name, _ in rows), default=5)
+    lines = [f"{'judge'.ljust(width)}  calls  seconds  per_call"]
+    for name, entry in rows:
+        lines.append(
+            f"{name.ljust(width)}  {entry['calls']:>5}  "
+            f"{entry['seconds']:>7.3f}  {entry['seconds_per_call']:>8.4f}"
+        )
+    return "\n".join(lines)
+
+
 def _parse_seeds(raw: str) -> list[int]:
     parts = [p.strip() for p in raw.split(",") if p.strip()]
     if len(parts) < 2:
@@ -469,9 +502,12 @@ def main_agree(argv: list[str]) -> int:
         seeds = _parse_seeds(args.seeds)
         names = _parse_names(args.names)
         rubric, cases, thresholds = load_agreement_cases(args.cases)
-        judges = build_agreement_judges(
-            args.provider, seeds, names, args.model
-        )
+        judges = [
+            metered(judge)
+            for judge in build_agreement_judges(
+                args.provider, seeds, names, args.model
+            )
+        ]
         report = agreement_matrix(
             judges,
             cases,
@@ -484,13 +520,18 @@ def main_agree(argv: list[str]) -> int:
         print(f"juryrig: {exc}", file=sys.stderr)
         return 2
 
+    usage = per_judge_usage(judges)
     if args.json:
-        print(_emit_json("agree", report.to_dict()))
+        payload = report.to_dict()
+        payload["usage"] = usage
+        print(_emit_json("agree", payload))
     else:
         print(report.summary())
         if args.fmt == "markdown":
             print()
             print(report.matrix(metric="within_eps", fmt="markdown"))
+        print()
+        print(format_usage_table(usage))
     return 1 if report.flagged else 0
 
 
@@ -509,9 +550,12 @@ def main_atlas(argv: list[str]) -> int:
         seeds = _parse_seeds(args.seeds)
         names = _parse_names(args.names)
         rubric, cases, thresholds = load_agreement_cases(args.cases)
-        judges = build_agreement_judges(
-            args.provider, seeds, names, args.model
-        )
+        judges = [
+            metered(judge)
+            for judge in build_agreement_judges(
+                args.provider, seeds, names, args.model
+            )
+        ]
         # Score once via the agreement matrix, then atlas over the same grid.
         report = agreement_matrix(
             judges,
@@ -526,12 +570,18 @@ def main_atlas(argv: list[str]) -> int:
         print(f"juryrig: {exc}", file=sys.stderr)
         return 2
 
+    usage = per_judge_usage(judges)
     if args.json:
-        print(_emit_json("atlas", atlas.to_dict()))
+        payload = atlas.to_dict()
+        payload["usage"] = usage
+        print(_emit_json("atlas", payload))
     elif args.fmt == "markdown":
         print(atlas.to_markdown(top=args.top))
     else:
         print(atlas.summary(top=args.top, fmt="ascii"))
+    if not args.json:
+        print()
+        print(format_usage_table(usage))
     return 0
 
 
