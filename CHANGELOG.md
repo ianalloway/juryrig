@@ -7,9 +7,41 @@ Notable changes to juryrig. Format loosely follows
 
 ### Added
 
-- The calibration CLI accepts an optional `--max-brier` gate for binary prediction error.
-
-- The audit, agreement and atlas commands accept JSONL case files with a shared rubric header.
+- A pytest plugin, registered on install via the `pytest11` entry point.
+  `assert_judge_clean` audits a judge and fails the test with the audits that
+  flagged and their numbers; `judge_audit` returns the report without
+  asserting; `@pytest.mark.juryrig(...)` overrides thresholds per test, and a
+  typo'd threshold name fails loudly rather than leaving the strict default
+  silently in force. pytest remains a test-time dependency — nothing in the
+  library imports the plugin. (ROADMAP 0.5.0 candidate.)
+- `juryrig report` combines every audit a case file supports into one page,
+  as Markdown for a PR comment or a self-contained HTML page to share. The
+  suite always runs; rubric sensitivity and calibration run when the file
+  carries what they need, and anything that could not run is listed as
+  omitted with the reason. HTML escapes case-file content, so a shared
+  report cannot carry injected script, and makes no third-party requests.
+  (ROADMAP 0.4.0 should-have #9.)
+- `metered()` wraps any judge to count its `judge()` and `compare()` calls
+  and the time spent in them, so you can see what an audit costs before
+  running it against a paid API. `juryrig audit` reports it automatically.
+  Calls that raise are counted too. The wrapper only exposes `compare()`
+  when the wrapped judge has one, so metering cannot make a score-only judge
+  look pairwise and silently disable the position audit. (ROADMAP 0.4.0
+  should-have #8.) `juryrig agree` and `juryrig atlas` report usage per
+  judge rather than one total, because a panel's cost is per judge and a
+  single sum would hide the slow or retrying one.
+- `rubric_sensitivity()` scores the same responses under several wordings of
+  one rubric and measures the drift, with `mean_spread`, `max_spread`,
+  per-wording `variant_means` and a `widest_gap` between the most and least
+  generous phrasing. Reachable as `juryrig rubric`. The paraphrases are
+  supplied by the caller: generating them would mean calling a model, and
+  whether two wordings are equivalent is a domain judgement. Kept out of
+  `audit_suite()`, like `verdict_consistency()`. (ROADMAP 0.4.0 should-have
+  #6.)
+- The calibration CLI accepts an optional `--max-brier` gate for binary
+  prediction error.
+- The audit, agreement and atlas commands accept JSONL case files with a
+  shared rubric header. (ROADMAP 0.4.0 should-have #7.)
 
 - `AuditSuiteReport.skipped_reasons` says *why* each skipped audit could not
   run, and the CLI warns on stderr when a judge was not fully audited. A

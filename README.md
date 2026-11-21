@@ -228,6 +228,116 @@ input order, so a report is identical no matter how many workers produced it
 — workers are a speed knob, never a correctness one. Your judge must be
 thread-safe to raise it. The CLI exposes the same thing as `--workers`.
 
+## Is your judge reading the rubric, or its wording?
+
+The rubric is a hidden degree of freedom. Two phrasings that mean the same
+thing to a person can score the same answer differently, and nothing in a
+normal eval pipeline notices.
+
+```python
+from juryrig import rubric_sensitivity
+
+report = rubric_sensitivity(judge, cases, rubrics=[
+    "Answer must mention photosynthesis, chlorophyll, sunlight, and energy.",
+    "The response should explain photosynthesis using chlorophyll and sunlight.",
+    "Must cover photosynthesis, chlorophyll, sunlight, energy.",
+])
+
+report.mean_spread     # average drift across wordings
+report.max_spread      # the case that moved most
+report.widest_gap      # most vs least generous wording
+report.variant_means   # mean score per rubric, in input order
+```
+
+`widest_gap` is the actionable number: a large value means one phrasing
+systematically scores higher, so you can choose the wording deliberately
+rather than by accident.
+
+**You supply the paraphrases.** juryrig will not invent them — generating
+them would mean calling a model, and whether two wordings really are
+equivalent is a judgement about your domain. If a variant genuinely asks for
+something else, a spread is correct behaviour, not a defect.
+
+From the command line, with a `"rubrics"` list in the case file:
+
+```bash
+juryrig rubric cases.json          # exits 1 if the judge is wording-sensitive
+```
+
+Like `verdict_consistency()`, this is not part of `audit_suite()`: it needs
+rubric variants the suite does not have, and its extra calls would shift
+measurements for judges whose behaviour depends on call order.
+
+## Gating a pytest suite
+
+Installing juryrig registers a pytest plugin, so a judge can be a test:
+
+```python
+def test_our_judge_is_fair(assert_judge_clean):
+    assert_judge_clean(our_judge, cases, rubric)
+
+@pytest.mark.juryrig(verbosity_mean_delta=0.1)   # looser, per test
+def test_tolerant(assert_judge_clean):
+    assert_judge_clean(wordy_judge, cases, rubric)
+```
+
+A failure names the audits that flagged and prints the numbers, so a red
+test says what is wrong with the judge. `judge_audit` is the same thing
+without the assertion, returning the report. Pass `require_full=True` to
+also fail when an audit could not run.
+
+pytest stays a test-time dependency: nothing in the library imports the
+plugin, so `import juryrig` still needs no third-party package.
+
+## One page to share
+
+`juryrig report` runs every audit the case file supports and emits a single
+page — Markdown for a PR comment, HTML to share:
+
+```bash
+juryrig report cases.json              # markdown
+juryrig report cases.json --fmt html   # self-contained page
+```
+
+It includes the bias/consistency suite always, rubric sensitivity when the
+file has a `"rubrics"` list, and calibration when it has `"scores"` and
+`"labels"`. Anything it could not run is listed under **Omitted** with the
+reason — an omitted audit is not a passing one, the same principle as
+`skipped_reasons`.
+
+The HTML carries its own styles and makes no third-party requests, so it
+opens offline. Case-file content is escaped, so a report you share cannot
+carry script from the file it was generated from.
+
+## What will this audit cost?
+
+`audit_suite()` on N cases is roughly `4N` judge calls, and the suite's own
+demo makes 33 for three cases. Against a paid API that is worth knowing
+*before* you point it at a large case set. Wrap the judge first:
+
+```python
+from juryrig import audit_suite, metered
+
+judge = metered(my_judge)
+report = audit_suite(judge, cases, rubric)
+
+usage = judge.usage()
+usage.calls                    # judge() + compare() calls made
+usage.seconds                  # summed time inside those calls
+usage.projected_seconds(4000)  # rough estimate at the observed rate
+```
+
+`juryrig audit` reports this automatically, as a `usage` line and a `usage`
+object under `--json`.
+
+Calls that raise are still counted: a failed request cost time and may still
+have been billed. `seconds` is summed per call, so under `max_workers > 1` it
+is total work done rather than elapsed wall time.
+
+The wrapper only grows a `compare()` when the judge it wraps has one — a
+wrapper that always had one would make a score-only judge look pairwise and
+quietly undo the skipped-audit reporting below.
+
 ## A skipped audit is not a pass
 
 `audit_suite()` can only run the position audit against a judge with

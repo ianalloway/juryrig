@@ -19,6 +19,11 @@ classifiers = [
 ]
 keywords = ["llm", "evals", "llm-as-judge", "calibration", "bias", "prompt-injection"]
 
+[project.entry-points.pytest11]
+# pytest loads this when juryrig is installed. pytest stays a test-time
+# dependency: nothing in the library imports the plugin module.
+juryrig = "juryrig.pytest_plugin"
+
 [project.scripts]
 juryrig = "juryrig.cli:main"
 

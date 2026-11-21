@@ -20,13 +20,15 @@ from .agreement import (
     agreement_matrix,
 )
 from .atlas import disagreement_atlas_from_report
-from .audits import Thresholds
+from .audits import Thresholds, rubric_sensitivity
 from .calibration import (
     brier_score,
     expected_calibration_error,
     reliability_table,
 )
 from .judge import Judge, MockJudge
+from .metering import metered
+from .onepager import OnePager, Section
 from .suite import AuditSuiteReport, audit_suite
 
 
@@ -270,6 +272,39 @@ def warn_skipped(report: AuditSuiteReport) -> None:
     )
 
 
+
+def per_judge_usage(judges: list[Judge]) -> dict:
+    """Usage for each metered judge in a panel, keyed by name.
+
+    A panel's cost is per judge, not one total: one slow or retrying judge is
+    the thing you want named, and a single sum would hide it.
+    """
+    usage = {}
+    for judge in judges:
+        report = judge.usage()
+        usage[judge.name] = {
+            "calls": report.calls,
+            "judge_calls": report.judge_calls,
+            "compare_calls": report.compare_calls,
+            "seconds": report.seconds,
+            "seconds_per_call": report.seconds_per_call,
+        }
+    return usage
+
+
+def format_usage_table(usage: dict) -> str:
+    """One line per judge, widest-first, so the expensive one stands out."""
+    rows = sorted(usage.items(), key=lambda kv: -kv[1]["seconds"])
+    width = max((len(name) for name, _ in rows), default=5)
+    lines = [f"{'judge'.ljust(width)}  calls  seconds  per_call"]
+    for name, entry in rows:
+        lines.append(
+            f"{name.ljust(width)}  {entry['calls']:>5}  "
+            f"{entry['seconds']:>7.3f}  {entry['seconds_per_call']:>8.4f}"
+        )
+    return "\n".join(lines)
+
+
 def _parse_seeds(raw: str) -> list[int]:
     parts = [p.strip() for p in raw.split(",") if p.strip()]
     if len(parts) < 2:
@@ -425,7 +460,7 @@ def main_audit(argv: list[str]) -> int:
         return 2
     try:
         rubric, cases, thresholds = load_cases(args.cases)
-        judge = build_judge(args.provider, args.model)
+        judge = metered(build_judge(args.provider, args.model))
         report = audit_suite(
             judge,
             cases,
@@ -439,10 +474,20 @@ def main_audit(argv: list[str]) -> int:
         return 2
 
     warn_skipped(report)
+    usage = judge.usage()
     if args.json:
-        print(_emit_json("audit", report_to_dict(report)))
+        payload = report_to_dict(report)
+        payload["usage"] = {
+            "calls": usage.calls,
+            "judge_calls": usage.judge_calls,
+            "compare_calls": usage.compare_calls,
+            "seconds": usage.seconds,
+            "seconds_per_call": usage.seconds_per_call,
+        }
+        print(_emit_json("audit", payload))
     else:
         print(report.summary())
+        print(f"usage      {usage.summary()}")
     return 1 if report.flagged else 0
 
 
@@ -458,9 +503,12 @@ def main_agree(argv: list[str]) -> int:
         seeds = _parse_seeds(args.seeds)
         names = _parse_names(args.names)
         rubric, cases, thresholds = load_agreement_cases(args.cases)
-        judges = build_agreement_judges(
-            args.provider, seeds, names, args.model
-        )
+        judges = [
+            metered(judge)
+            for judge in build_agreement_judges(
+                args.provider, seeds, names, args.model
+            )
+        ]
         report = agreement_matrix(
             judges,
             cases,
@@ -473,13 +521,18 @@ def main_agree(argv: list[str]) -> int:
         print(f"juryrig: {exc}", file=sys.stderr)
         return 2
 
+    usage = per_judge_usage(judges)
     if args.json:
-        print(_emit_json("agree", report.to_dict()))
+        payload = report.to_dict()
+        payload["usage"] = usage
+        print(_emit_json("agree", payload))
     else:
         print(report.summary())
         if args.fmt == "markdown":
             print()
             print(report.matrix(metric="within_eps", fmt="markdown"))
+        print()
+        print(format_usage_table(usage))
     return 1 if report.flagged else 0
 
 
@@ -498,9 +551,12 @@ def main_atlas(argv: list[str]) -> int:
         seeds = _parse_seeds(args.seeds)
         names = _parse_names(args.names)
         rubric, cases, thresholds = load_agreement_cases(args.cases)
-        judges = build_agreement_judges(
-            args.provider, seeds, names, args.model
-        )
+        judges = [
+            metered(judge)
+            for judge in build_agreement_judges(
+                args.provider, seeds, names, args.model
+            )
+        ]
         # Score once via the agreement matrix, then atlas over the same grid.
         report = agreement_matrix(
             judges,
@@ -515,12 +571,18 @@ def main_atlas(argv: list[str]) -> int:
         print(f"juryrig: {exc}", file=sys.stderr)
         return 2
 
+    usage = per_judge_usage(judges)
     if args.json:
-        print(_emit_json("atlas", atlas.to_dict()))
+        payload = atlas.to_dict()
+        payload["usage"] = usage
+        print(_emit_json("atlas", payload))
     elif args.fmt == "markdown":
         print(atlas.to_markdown(top=args.top))
     else:
         print(atlas.summary(top=args.top, fmt="ascii"))
+    if not args.json:
+        print()
+        print(format_usage_table(usage))
     return 0
 
 
@@ -699,6 +761,253 @@ def main_calibrate(argv: list[str]) -> int:
                   else "PASSED: calibration within tolerance")
     return 1 if flagged else 0
 
+
+def load_rubric_variants(
+    path: Path,
+) -> tuple[list[str], list[tuple[str, str]], Thresholds]:
+    """Read {"rubrics": [...], "cases": [{prompt, good|response}, ...]}.
+
+    `good` is accepted as well as `response` so one case file can serve both
+    this and `juryrig audit` without being rewritten.
+    """
+    try:
+        raw = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{path} is not valid JSON: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path} must contain a JSON object.")
+
+    rubrics = raw.get("rubrics")
+    if not isinstance(rubrics, list) or len(rubrics) < 2:
+        raise ValueError(
+            f"{path} needs a list 'rubrics' with at least two wordings to compare."
+        )
+    bad = [i for i, r in enumerate(rubrics) if not isinstance(r, str) or not r.strip()]
+    if bad:
+        raise ValueError(
+            f"{path}: every rubric must be a non-empty string; offending "
+            "index(es): " + ", ".join(str(i) for i in bad[:5])
+        )
+    if len(set(rubrics)) != len(rubrics):
+        raise ValueError(
+            f"{path}: rubric wordings must differ; identical ones measure nothing."
+        )
+
+    entries = raw.get("cases")
+    if not isinstance(entries, list) or not entries:
+        raise ValueError(f"{path} needs a non-empty list 'cases'.")
+    cases = []
+    for i, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise ValueError(f"{path} case {i} must be an object.")
+        response = entry.get("response") or entry.get("good")
+        if not entry.get("prompt") or not response:
+            raise ValueError(
+                f"{path} case {i} needs a non-empty prompt and response (or good)."
+            )
+        cases.append((entry["prompt"], response))
+    return rubrics, cases, _load_thresholds(raw, path)
+
+
+def build_rubric_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="juryrig rubric",
+        description="Score the same responses under several wordings of one "
+        "rubric and measure the drift. Exits 1 if the judge is rubric-"
+        "sensitive, 2 on bad input.",
+    )
+    parser.add_argument(
+        "cases",
+        type=Path,
+        help='JSON: {"rubrics": [...], "cases": [{"prompt","good"}, ...]}',
+    )
+    parser.add_argument(
+        "--provider", default="mock", choices=("mock", "anthropic", "openai"),
+        help="Judge to audit (default: mock, no API key needed).",
+    )
+    parser.add_argument("--model", help="Model id for the chosen provider.")
+    parser.add_argument(
+        "--workers", type=int, default=1,
+        help="Parallel judge calls (default: 1, serial).",
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Emit the report as JSON."
+    )
+    return parser
+
+
+def rubric_report_to_dict(report, rubrics: list[str]) -> dict:
+    """JSON-safe view, pairing each rubric with its mean score."""
+    return {
+        "cases": report.cases,
+        "variants": report.variants,
+        "mean_spread": report.mean_spread,
+        "max_spread": report.max_spread,
+        "widest_gap": report.widest_gap,
+        "flagged": report.flagged,
+        "thresholds": asdict(report.thresholds),
+        "rubrics": [
+            {"rubric": rubric, "mean_score": mean}
+            for rubric, mean in zip(rubrics, report.variant_means)
+        ],
+    }
+
+
+def main_rubric(argv: list[str]) -> int:
+    args = build_rubric_parser().parse_args(argv)
+    if args.workers < 1:
+        print("juryrig: --workers must be at least 1", file=sys.stderr)
+        return 2
+    try:
+        rubrics, cases, thresholds = load_rubric_variants(args.cases)
+        judge = build_judge(args.provider, args.model)
+        report = rubric_sensitivity(
+            judge, cases, rubrics, thresholds=thresholds, max_workers=args.workers
+        )
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"juryrig: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(_emit_json("rubric", rubric_report_to_dict(report, rubrics)))
+    else:
+        print(f"cases: {report.cases}  rubric wordings: {report.variants}")
+        print(f"mean_spread  {report.mean_spread:.3f}")
+        print(f"max_spread   {report.max_spread:.3f}")
+        print(f"widest_gap   {report.widest_gap:.3f} "
+              "(most vs least generous wording)")
+        print()
+        width = max(len(f"{m:.3f}") for m in report.variant_means)
+        for rubric, mean in zip(rubrics, report.variant_means):
+            trimmed = rubric if len(rubric) <= 60 else rubric[:57] + "..."
+            print(f"  {mean:>{width}.3f}  {trimmed}")
+        print()
+        print("FLAGGED: judge is sensitive to rubric wording" if report.flagged
+              else "PASSED: wording does not move this judge")
+    return 1 if report.flagged else 0
+
+
+def build_report_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="juryrig report",
+        description="One page combining every audit this case file supports: "
+        "the suite, plus rubric sensitivity and calibration when the file "
+        "carries what they need. Exits 1 if anything is flagged, 2 on bad "
+        "input.",
+    )
+    parser.add_argument("cases", type=Path, help="JSON or JSONL case file.")
+    parser.add_argument(
+        "--provider", default="mock", choices=("mock", "anthropic", "openai"),
+        help="Judge to audit (default: mock).",
+    )
+    parser.add_argument("--model", help="Model id for the chosen provider.")
+    parser.add_argument(
+        "--fmt", default="markdown", choices=("markdown", "html"),
+        help="markdown for a PR comment (default), html to share.",
+    )
+    parser.add_argument(
+        "--runs", type=int, default=5, help="Self-consistency repeats."
+    )
+    parser.add_argument(
+        "--workers", type=int, default=1, help="Parallel judge calls."
+    )
+    return parser
+
+
+def main_report(argv: list[str]) -> int:
+    args = build_report_parser().parse_args(argv)
+    for name, value in (("--runs", args.runs), ("--workers", args.workers)):
+        if value < 1:
+            print(f"juryrig: {name} must be at least 1", file=sys.stderr)
+            return 2
+    try:
+        rubric, cases, thresholds = load_cases(args.cases)
+        # The extra sections read keys load_cases() does not return. A JSONL
+        # file has no single object to read them from, so they are omitted.
+        raw: dict = {}
+        if args.cases.suffix != ".jsonl":
+            loaded = json.loads(args.cases.read_text())
+            if isinstance(loaded, dict):
+                raw = loaded
+        judge = metered(build_judge(args.provider, args.model))
+        page = OnePager(judge=judge.name)
+
+        suite = audit_suite(
+            judge, cases, rubric, runs=args.runs,
+            thresholds=thresholds, max_workers=args.workers,
+        )
+        page.sections.append(Section(
+            title="Bias and consistency suite",
+            flagged=suite.flagged,
+            lines=suite.summary().splitlines(),
+        ))
+        page.omitted.update(
+            {f"{name} audit": why for name, why in suite.skipped_reasons.items()}
+        )
+
+        rubrics = raw.get("rubrics") if isinstance(raw, dict) else None
+        if isinstance(rubrics, list) and len(rubrics) >= 2:
+            pairs = [(prompt, good) for prompt, good, _ in cases]
+            rs = rubric_sensitivity(
+                judge, pairs, rubrics,
+                thresholds=thresholds, max_workers=args.workers,
+            )
+            page.sections.append(Section(
+                title="Rubric sensitivity",
+                flagged=rs.flagged,
+                note="Scores under each wording; a wide gap means the phrasing "
+                     "moves the verdict.",
+                lines=[
+                    f"mean_spread {rs.mean_spread:.3f}",
+                    f"max_spread  {rs.max_spread:.3f}",
+                    f"widest_gap  {rs.widest_gap:.3f}",
+                    *(
+                        f"  {mean:.3f}  {wording[:60]}"
+                        for wording, mean in zip(rubrics, rs.variant_means)
+                    ),
+                ],
+            ))
+        else:
+            page.omitted["Rubric sensitivity"] = (
+                'the case file has no "rubrics" list of two or more wordings'
+            )
+
+        labels = raw.get("labels") if isinstance(raw, dict) else None
+        scores = raw.get("scores") if isinstance(raw, dict) else None
+        if isinstance(scores, list) and isinstance(labels, list) and scores:
+            bins = raw.get("bins", 10)
+            ece = expected_calibration_error(scores, labels, bins)
+            page.sections.append(Section(
+                title="Calibration",
+                flagged=ece > 0.1,
+                note="Against human labels in the case file.",
+                lines=[
+                    f"brier_score                {brier_score(scores, labels):.4f}",
+                    f"expected_calibration_error {ece:.4f}",
+                    "",
+                    *format_reliability(
+                        reliability_table(scores, labels, bins)
+                    ).splitlines(),
+                ],
+            ))
+        else:
+            page.omitted["Calibration"] = (
+                'the case file carries no "scores" and "labels" to compare'
+            )
+
+        usage = judge.usage()
+        page.sections.append(Section(
+            title="Cost",
+            flagged=False,
+            lines=[usage.summary()],
+        ))
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"juryrig: {exc}", file=sys.stderr)
+        return 2
+
+    print(page.to_html() if args.fmt == "html" else page.to_markdown())
+    return 1 if page.flagged else 0
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "agree":
@@ -707,6 +1016,10 @@ def main(argv: list[str] | None = None) -> int:
         return main_atlas(argv[1:])
     if argv and argv[0] == "calibrate":
         return main_calibrate(argv[1:])
+    if argv and argv[0] == "rubric":
+        return main_rubric(argv[1:])
+    if argv and argv[0] == "report":
+        return main_report(argv[1:])
     return main_audit(argv)
 
 

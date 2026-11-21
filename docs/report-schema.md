@@ -11,7 +11,7 @@ Each object carries two identifying fields:
 | Field | Meaning |
 |---|---|
 | `schema_version` | Integer. The version of this contract. Currently `1`. |
-| `report` | Which subcommand produced it: `audit`, `agree`, `atlas`, `calibrate`. |
+| `report` | Which subcommand produced it: `audit`, `agree`, `atlas`, `calibrate`, `rubric`. |
 
 **`schema_version` is bumped only on a breaking change**: a field removed or
 renamed, or its type or meaning changed.
@@ -57,6 +57,9 @@ exit code: `1` when `flagged` is true, `0` when false, `2` on bad input.
   why for each. A skipped audit is a coverage gap, not a pass — `flagged`
   can be `false` while part of the battery never executed, so check
   `skipped` as well as `flagged`. The CLI also prints a warning to stderr.
+- `usage` reports what the run cost: `calls`, `judge_calls`,
+  `compare_calls`, `seconds` and `seconds_per_call`. `seconds` is summed per
+  call, so with parallel workers it is total work done, not elapsed time.
 - Each entry under `audits` is `null` when that audit was skipped, otherwise
   the audit's own fields plus a derived `flagged`, and `flip_rate` for
   `position`. Each carries the `thresholds` it was judged against, so a
@@ -88,7 +91,33 @@ bucket, negative means underconfident. Buckets with no members are omitted.
 `max_brier` records the optional Brier score limit. Its default is null.
 `flagged` is true when either metric exceeds its enabled limit.
 
+## `rubric`
+
+```json
+{
+  "schema_version": 1,
+  "report": "rubric",
+  "cases": 2,
+  "variants": 3,
+  "mean_spread": 0.155,
+  "max_spread": 0.214,
+  "widest_gap": 0.155,
+  "flagged": true,
+  "thresholds": {"...": "..."},
+  "rubrics": [{"rubric": "Answer must mention ...", "mean_score": 0.5}]
+}
+```
+
+`rubrics` keeps the input order and pairs each wording with its mean score,
+so a consumer can name the most and least generous phrasing rather than just
+report that a gap exists.
+
 ## `agree` and `atlas`
+
+Both carry a `usage` object keyed by judge name, each with `calls`,
+`judge_calls`, `compare_calls`, `seconds` and `seconds_per_call`. Cost is
+reported per judge, not as one total, so a slow or retrying judge is named.
+
 
 These wrap `AgreementMatrixReport.to_dict()` and the atlas's `to_dict()`
 respectively, under the same two identifying fields. See the README sections

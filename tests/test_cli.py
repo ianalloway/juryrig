@@ -166,6 +166,24 @@ class LoadCasesTest(unittest.TestCase):
         self.assertEqual(thresholds, DEFAULT_THRESHOLDS)
 
 
+
+CALL_FIELDS = ("calls", "judge_calls", "compare_calls")
+
+
+def call_counts(usage: dict) -> dict:
+    """Deterministic call counts from a usage block, dropping timings.
+
+    `audit` reports one flat usage object; `agree` and `atlas` report one per
+    judge, keyed by name. Handle both so this works for every subcommand.
+    """
+    if all(field in usage for field in CALL_FIELDS):
+        return {field: usage[field] for field in CALL_FIELDS}
+    return {
+        name: {field: entry[field] for field in CALL_FIELDS}
+        for name, entry in usage.items()
+    }
+
+
 class JsonlCaseFileTests(unittest.TestCase):
     def test_same_reports_for_json_and_jsonl(self):
         header = {
@@ -188,6 +206,15 @@ class JsonlCaseFileTests(unittest.TestCase):
                             code = main([*command, str(path), "--json"])
                         self.assertIn(code, (0, 1))
                         reports.append(json.loads(output.getvalue()))
+                    # `usage` carries wall-clock timings, which never match
+                    # between two runs. Compare the call counts, which are
+                    # deterministic and the part that should be identical for
+                    # the same cases, then the rest of the report verbatim.
+                    usages = [report.pop("usage", None) for report in reports]
+                    if usages[0] is not None:
+                        self.assertEqual(
+                            call_counts(usages[0]), call_counts(usages[1])
+                        )
                     self.assertEqual(*reports)
 
     def test_bad_jsonl_fails_with_location(self):
