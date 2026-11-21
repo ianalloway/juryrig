@@ -54,8 +54,11 @@ class NoRedirectTest(unittest.TestCase):
                     sleep=lambda _s: None,
                 )
         finally:
-            origin.shutdown()
-            sink.shutdown()
+            # shutdown() stops serve_forever but leaves the listening socket
+            # open; server_close() is what releases the file descriptor.
+            for server in (origin, sink):
+                server.shutdown()
+                server.server_close()
         self.assertEqual(_Sink.seen, [])
 
 
