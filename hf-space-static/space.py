@@ -209,6 +209,7 @@ q8,0.95,0.90,0.30
 class PositionResult:
     report: juryrig.PositionBiasReport
     longer_wins: tuple[int, int] | None  # (longer won, decisive comparisons)
+    outcomes_changed: list[list[str]]
 
 
 def analyze_position(text: str, flip_limit: float = 0.2, skew_limit: float = 0.2) -> PositionResult:
@@ -239,7 +240,14 @@ def analyze_position(text: str, flip_limit: float = 0.2, skew_limit: float = 0.2
             decisive += 1
             won += (verdict == "A") == (lf > ls)
         longer = (won, decisive)
-    return PositionResult(report, longer)
+    outcomes_changed = []
+    for i, cid in enumerate(ids, start=1):
+        forward, reverse = table[str(i)]
+        original_winner = {"A": "Response X", "B": "Response Y", "tie": "tie"}[forward]
+        swapped_winner = {"A": "Response Y", "B": "Response X", "tie": "tie"}[reverse]
+        if original_winner != swapped_winner:
+            outcomes_changed.append([cid, forward, reverse, original_winner, swapped_winner])
+    return PositionResult(report, longer, outcomes_changed)
 
 
 def on_position(text, flip_limit, skew_limit):
@@ -258,9 +266,9 @@ def on_position(text, flip_limit, skew_limit):
         rows.append(["Longer response wins (original order)", share,
                      "extra descriptive stat computed by this Space, not a juryrig audit"])
     head = (f"### Position bias: {ok(p.flagged)}\n\n"
-            "A fair judge picks the same *content* in both orders. A **flip** means the slot, not the content, "
-            "decided the winner. First-slot share far from 50% means a favourite slot.")
-    return head, rows
+            "An order-invariant judge produces the same outcome in both orders. A **flip** means the outcome "
+            "changed after a swap. First-slot share far from 50% indicates a slot preference in this sample.")
+    return head, rows, p.cases, r.outcomes_changed
 
 
 # --------------------------------------------------------------------------
@@ -296,7 +304,7 @@ def on_verbosity(text, scale_max, mean_limit, max_limit):
             "Each response was re-scored after appending content-free filler. Filler adds no information, so a "
             "fair judge's score should not rise. A positive mean change means *longer = better* to this judge. "
             "Scores are normalised to 0–1 before the audit.")
-    return head, rows, per_case
+    return head, rows, per_case, p.cases
 
 
 # --------------------------------------------------------------------------
@@ -326,7 +334,7 @@ def on_calibration(text, bins):
             "A judge that says 0.9 should be right about 90% of the time. Compare *mean score* with *accuracy* per bin.")
     rows = [[f"{b.lower:.2f}–{b.upper:.2f}", b.count, f"{b.mean_score:.2f}", f"{b.accuracy:.2f}",
              f"{abs(b.mean_score - b.accuracy):.2f}"] for b in table]
-    return head, rows
+    return head, rows, n
 
 
 # --------------------------------------------------------------------------
@@ -372,7 +380,7 @@ def on_agreement(text, scale_max, epsilon):
                                     f"{', '.join(str(ids[k]) for k in c.item_indices)}"
                                     for c in atlas.clusters if c.split_pairs))
                        if any(c.split_pairs for c in atlas.clusters) else ""))
-    return head, pairs, atlas_md
+    return head, pairs, atlas_md, report.cases
 
 
 # --------------------------------------------------------------------------
@@ -413,7 +421,26 @@ def run_demo():
             f"{rep.consistency.spread:.2f}",
             "🚩 " + ", ".join(rep.failures) if rep.flagged else "✅ passed",
         ])
-    return rows, "\n\n".join(rep.summary() for rep in reports)
+    slot_judge = judges[1]
+    for prompt, response_x, response_y in DEMO_CASES:
+        forward = slot_judge.compare(prompt=prompt, a=response_x, b=response_y, rubric=DEMO_RUBRIC)
+        reverse = slot_judge.compare(prompt=prompt, a=response_y, b=response_x, rubric=DEMO_RUBRIC)
+        forward_winner = {"A": "Response X", "B": "Response Y", "tie": "tie"}[forward]
+        reverse_winner = {"A": "Response Y", "B": "Response X", "tie": "tie"}[reverse]
+        if forward_winner != reverse_winner:
+            worked_example = {
+                "prompt": prompt,
+                "response_x": response_x,
+                "response_y": response_y,
+                "choices": [
+                    ["Original", "Response X", "Response Y", forward, forward_winner],
+                    ["Swapped", "Response Y", "Response X", reverse, reverse_winner],
+                ],
+            }
+            break
+    else:
+        worked_example = None
+    return rows, "\n\n".join(rep.summary() for rep in reports), len(DEMO_CASES), worked_example
 
 
 # --------------------------------------------------------------------------

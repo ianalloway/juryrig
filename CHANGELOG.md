@@ -5,7 +5,14 @@ Notable changes to juryrig. Format loosely follows
 
 ## [Unreleased]
 
+### Documentation
+
+- Point the install guide and pinned quickstart to PyPI 0.3.2.
+
 ### Added
+
+- The browser Space walks through a worked position-bias example and can
+  export local JSON audit reports. The exports do not include pasted inputs.
 
 - A pytest plugin, registered on install via the `pytest11` entry point.
   `assert_judge_clean` audits a judge and fails the test with the audits that
