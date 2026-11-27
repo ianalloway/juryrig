@@ -57,18 +57,18 @@ The two judges' panel scores on the same response agree to within 0.015 (agreeme
 
 ## Install
 
-### Stable release (0.3.1)
+### Stable release (0.3.2)
 
 ```bash
-python -m pip install "juryrig==0.3.1"
+python -m pip install "juryrig==0.3.2"
 ```
 
-Or just `pip install juryrig` for the latest on PyPI. **0.3.1** includes the
-disagreement atlas (`disagreement_atlas()` / `juryrig atlas`), the agreement
-matrix, audits, panels, calibration, and the `HttpJudge` key-leak fix. See the
-[0.3.1 changelog](CHANGELOG.md#031---2026-10-12).
+Or run `pip install juryrig` for the latest on PyPI. **0.3.2** adds
+provider pairwise comparisons, verdict stability, and the `juryrig calibrate`
+command. It also tightens score validation and refuses HTTP redirects on
+provider judge calls. See the [0.3.2 changelog](CHANGELOG.md#032---2026-11-05).
 
-| Capability | PyPI 0.3.1 |
+| Capability | PyPI 0.3.2 |
 |---|---|
 | Audits, panels, calibration, provider adapters | Available |
 | `agreement_matrix()` / `juryrig agree` | Available |
@@ -638,7 +638,7 @@ From a source checkout, after installing it with `python -m pip install -e .`:
 python examples/audit_demo.py
 ```
 
-For a pinned source demo, check out the [`v0.3.1` tag](https://github.com/ianalloway/juryrig/tree/v0.3.1)
+For a pinned source demo, check out the [`v0.3.2` tag](https://github.com/ianalloway/juryrig/tree/v0.3.2)
 in a separate checkout before installing it. The example file is not installed
 as a command by the PyPI wheel.
 

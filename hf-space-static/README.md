@@ -38,7 +38,7 @@ the library and CLI with your own keys.
 | Calibration | `brier_score`, `expected_calibration_error`, `reliability_table` | scores + 0/1 human labels |
 | Judge agreement | `agreement_matrix` + `disagreement_atlas_from_report` (new in 0.3.1) | one score column per judge |
 
-Every tab has a **Load example** button and a format description. Inputs can be CSV with a header or a JSON list of objects.
+The one-click demo shows the same pair in both orders and explains why the mock judge picked a different answer. The audit tabs accept CSV with a header or a JSON list of objects. After a run, save a local JSON report with the version, settings, sample size, and derived results. Pasted inputs are excluded, but case IDs and judge names can appear. A passing audit is not evidence of human agreement.
 
 ### Input formats
 
@@ -77,14 +77,14 @@ q1,0.90,0.85
 
 - `index.html` + `app.js` + `style.css`: plain static page, no build step.
 - On load it fetches [Pyodide](https://pyodide.org) (CPython compiled to WebAssembly) from the official jsDelivr CDN,
-  then installs the pure-Python `juryrig` wheel from PyPI with `micropip` (pinned: `juryrig==0.3.1`).
+  then installs the pure-Python `juryrig` wheel from PyPI with `micropip` (pinned: `juryrig==0.3.2`).
 - `space.py` holds the same logic as the Gradio version in [`../hf-space/app.py`](../hf-space/app.py), with the gradio UI
   removed; `app.js` calls it through a tiny JSON bridge and renders the results.
 - Network: only Pyodide assets (`cdn.jsdelivr.net`) and the wheel (`pypi.org`, `files.pythonhosted.org`). No keys, no server,
   and nothing you type is uploaded. First visit downloads Pyodide (several MB, cached by the browser afterwards).
 
-**Offline wheel (optional fallback):** if PyPI is unreachable, `app.js` tries `wheels/juryrig-0.3.1-py3-none-any.whl` next to `index.html`.
-Drop that file from `pip download juryrig==0.3.1 --no-deps -d wheels` into a `wheels/` folder to use it.
+**Offline wheel (optional fallback):** if PyPI is unreachable, `app.js` first looks next to `index.html`, then tries `wheels/juryrig-0.3.2-py3-none-any.whl`.
+Drop that file from `pip download juryrig==0.3.2 --no-deps -d wheels` into a `wheels/` folder to use it.
 
 ## Run locally
 
