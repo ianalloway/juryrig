@@ -73,6 +73,37 @@ q1,0.90,0.85
 `len_first`/`len_second` are optional; they add a simple "does the longer answer win?" statistic that this Space computes itself
 (it is not a juryrig audit).
 
+### Sample JSON report
+
+After any run, **Download report (JSON)** saves a report like this one (from the one-click demo's built-in mock cases, shortened):
+
+```json
+{
+  "schema_version": 1,
+  "juryrig_version": "0.3.2",
+  "audit": "demo",
+  "sample_size": 3,
+  "settings": { "mock_data": true },
+  "results": {
+    "judges": [
+      ["fair", "0% / 50%", "+0.00", "+0.00", "0.00", "✅ passed"],
+      ["slot-biased", "67% / 83%", "+0.00", "+0.00", "0.00", "🚩 position"]
+    ],
+    "summary": "judge: fair\nposition    flip_rate=0% first_slot_wins=50% ties=0 flagged=False\n…\nPASSED all audits",
+    "worked_example": { "prompt": "How do plants make food?", "…": "…" }
+  }
+}
+```
+
+- `schema_version` — version of this report format (currently `1`).
+- `juryrig_version` — the juryrig release that produced the results.
+- `audit` — which tab ran (`demo`, `position`, `verbosity`, `calibration`, or `agreement`).
+- `sample_size` — how many cases the audit ran on.
+- `settings` — the thresholds/options in effect for that run.
+- `results` — the derived tables and summary text shown on the page; the exact keys depend on the audit.
+
+Pasted inputs are **not** included in the report, but user-supplied case IDs or judge names may appear in `results` (for example in changed-outcome rows), so treat a report from real data as you would the data itself.
+
 ## How it works
 
 - `index.html` + `app.js` + `style.css`: plain static page, no build step.
