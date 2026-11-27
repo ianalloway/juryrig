@@ -3,7 +3,8 @@ import json
 import runpy
 from pathlib import Path
 
-_SPACE = runpy.run_path(str(Path(__file__).resolve().parents[1] / "hf-space-static" / "space.py"))
+_SOURCE = Path(__file__).resolve().parents[1] / "hf-space-static" / "space.py"
+_SPACE = runpy.run_path(str(_SOURCE))
 
 
 def call(name, *args):
@@ -22,14 +23,19 @@ def test_demo_explains_a_real_mock_judge_swap():
 
 
 def test_position_export_distinguishes_slot_changes_from_winner_changes():
-    sample = "case_id,verdict_original,verdict_swapped\ngood,A,B\nchange,A,A\ntie,tie,tie\n"
+    sample = (
+        "case_id,verdict_original,verdict_swapped\n"
+        "good,A,B\nchange,A,A\ntie,tie,tie\n"
+    )
     _, _, count, changes = call("on_position", sample, 0.2, 0.2)
     assert count == 3
     assert changes == [["change", "A", "A", "Response X", "Response Y"]]
 
 
 def test_other_reports_return_sample_counts():
-    _, _, changes, count = call("on_verbosity", _SPACE["EXAMPLE_VERBOSITY"], 1, 0.05, 0.15)
+    _, _, changes, count = call(
+        "on_verbosity", _SPACE["EXAMPLE_VERBOSITY"], 1, 0.05, 0.15
+    )
     assert count == len(changes) > 0
     _, bins, count = call("on_calibration", _SPACE["EXAMPLE_CALIBRATION"], 5)
     assert count == sum(row[1] for row in bins) > 0
