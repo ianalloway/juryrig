@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>juryrig: audit your LLM judge</title>
+<title>JuryRig: audit your LLM judge</title>
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.js"></script>
 </head>
 <body>
-<h1>⚖️ juryrig: audit your LLM judge before you trust it</h1>
+<h1>⚖️ JuryRig: audit your LLM judge before you trust it</h1>
 <p>Paste the verdicts/scores your LLM judge already produced and check them for <b>position bias</b>, <b>verbosity bias</b>,
 <b>calibration</b> and <b>cross-judge agreement</b>, using the real <a href="https://pypi.org/project/juryrig/" target="_blank" rel="noopener">juryrig</a>
 audit functions running in your browser with <a href="https://pyodide.org" target="_blank" rel="noopener">Pyodide</a>.
-<b>Offline, zero keys:</b> your data never leaves this tab and no judge API is called.
+<b>Local processing, no API keys:</b> your data never leaves this tab and no judge API is called.
 <a href="https://github.com/ianalloway/juryrig" target="_blank" rel="noopener">GitHub</a> · <code>pip install juryrig</code></p>
 <div id="status">Starting…</div>
 <nav>
@@ -27,6 +27,15 @@ audit functions running in your browser with <a href="https://pyodide.org" targe
 <section id="demo">
   <p>Runs juryrig's full <code>audit_suite</code> against five built-in <b>mock judges</b>, each with a deliberate flaw, so you can see what a flagged audit looks like. No input needed.</p>
   <div class="row"><button id="d-btn" class="primary" disabled>Run the audits</button></div>
+  <p role="note">This demo uses mock judges on three toy cases. A passing audit does not prove that a judge agrees with people or generalizes to new data.</p>
+  <div id="d-example" hidden>
+    <h2>Why did the winner change?</h2>
+    <p><b>Prompt:</b> <span id="d-prompt"></span></p>
+    <p><b>Response X:</b> <span id="d-x"></span><br><b>Response Y:</b> <span id="d-y"></span></p>
+    <div id="d-orders"></div>
+    <p>The answers stayed the same, but switching their order changed which answer won. This is one example of position bias in the deliberately slot-biased mock judge.</p>
+    <div class="row"><button class="secondary" id="d-try">Try your own scores</button></div>
+  </div>
   <div class="error"></div>
   <div id="d-tbl"></div>
   <details id="d-box" hidden><summary>Full text reports</summary><pre id="d-txt"></pre></details>
@@ -34,7 +43,7 @@ audit functions running in your browser with <a href="https://pyodide.org" targe
 <section id="position" hidden>
   <div class="help"><p><b>Input (CSV with header, or a JSON list of objects).</b> One row per pair of responses you showed the judge <b>twice</b>, once in each order:</p>
 <table><tr><th>column</th><th>meaning</th></tr><tr><td><code>case_id</code></td><td>optional label (unique)</td></tr><tr><td><code>verdict_original</code></td><td>what the judge said with response X in slot A and Y in slot B: <code>A</code>, <code>B</code> or <code>tie</code></td></tr><tr><td><code>verdict_swapped</code></td><td>what it said with the slots swapped (Y in A, X in B): <code>A</code>, <code>B</code> or <code>tie</code></td></tr><tr><td><code>len_first</code>, <code>len_second</code></td><td><i>optional</i>: lengths of X and Y (any unit) for an extra "does the longer answer win?" stat</td></tr></table>
-<p>Verdicts are the judge's literal slot answer. A fair judge's two verdicts are opposite (<code>A</code>→<code>B</code>).</p></div>
+<p>Verdicts are the judge's literal slot answer. When it has a winner, an order-invariant judge picks the same answer in the opposite slot (<code>A</code>→<code>B</code> or vice versa). A tie can stay a tie.</p></div>
   <label>Pairwise verdicts (CSV or JSON)<textarea id="p-in" rows="10" spellcheck="false"></textarea></label>
   <div class="row"><button class="secondary" data-example="#p-in">Load example</button><label>Flag if flip rate &gt;<input id="p-flip" type="number" value="0.2" min="0" max="1" step="0.05"></label><label>Flag if |first-slot share − 50%| &gt;<input id="p-skew" type="number" value="0.2" min="0" max="0.5" step="0.05"></label></div>
   <div class="row"><button id="p-btn" class="primary" disabled>Audit position bias</button></div>
@@ -67,9 +76,10 @@ audit functions running in your browser with <a href="https://pyodide.org" targe
 </section>
 <section id="about" hidden>
   <ul>
-    <li><b>What runs here?</b> juryrig's real audit code (v0.3.1 from PyPI), replaying the outputs you paste, inside this browser tab. Live audits that call a judge model (OpenAI, Anthropic, any HTTP endpoint) are available in the library and CLI (<code>juryrig cases.json</code>) but need your own keys, so they are not part of this Space.</li>
+    <li><b>What runs here?</b> juryrig's real audit code (v0.3.2 from PyPI), replaying the outputs you paste, inside this browser tab. Live audits that call a judge model (OpenAI, Anthropic, any HTTP endpoint) are available in the library and CLI (<code>juryrig cases.json</code>) but need your own keys, so they are not part of this Space.</li>
     <li><b>Privacy:</b> the page only downloads Pyodide (jsDelivr CDN) and the juryrig wheel (PyPI). Pasted data is processed locally and never uploaded.</li>
-    <li><b>Limits:</b> a flagged audit means the <i>evidence you pasted</i> shows bias at the chosen thresholds; with few cases the numbers are noisy. Defaults are deliberately strict.</li>
+    <li><b>Limits:</b> a flag means your sample exceeded an audit threshold. Small samples are noisy, and a pass does not establish accuracy, fairness, or human agreement. The calibration tab uses the human labels you provide; judge-to-judge agreement does not validate those labels.</li>
+    <li><b>Downloads:</b> JSON reports are built locally. They exclude the pasted input, but can include case IDs, judge names, and derived scores. Review before sharing.</li>
     <li><b>Disagreement atlas</b> (new in 0.3.1): the Judge agreement tab also ranks the items where the panel splits most, groups items that split the same judge pairs, and shows how often each judge is the contrarian.</li>
   </ul>
 </section>
