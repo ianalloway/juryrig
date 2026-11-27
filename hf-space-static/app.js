@@ -63,7 +63,12 @@ async function boot(pkg, wheelFile) {
   } catch (err) {
     // Fallback: a wheel bundled next to index.html (see README "Offline wheel").
     console.warn("PyPI install failed, trying bundled wheel", err);
-    await micropip.install(new URL(`wheels/${wheelFile}`, location.href).href);
+    // The deployed Space bundles the wheel at its root; local checkouts may use wheels/.
+    try {
+      await micropip.install(new URL(wheelFile, location.href).href);
+    } catch {
+      await micropip.install(new URL(`wheels/${wheelFile}`, location.href).href);
+    }
   }
   const src = await (await fetch("space.py")).text();
   py.FS.writeFile("/home/pyodide/space.py", src);
