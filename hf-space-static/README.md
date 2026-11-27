@@ -73,6 +73,52 @@ q1,0.90,0.85
 `len_first`/`len_second` are optional; they add a simple "does the longer answer win?" statistic that this Space computes itself
 (it is not a juryrig audit).
 
+### Exported report
+
+**Download report (JSON)** saves `juryrig-<audit>-report.json`. This trimmed example comes from the one-click demo
+(built-in mock cases only; two of the five judges and a shortened `summary`):
+
+```json
+{
+  "schema_version": 1,
+  "juryrig_version": "0.3.2",
+  "audit": "demo",
+  "sample_size": 3,
+  "settings": {
+    "mock_data": true
+  },
+  "results": {
+    "judges": [
+      ["fair", "0% / 50%", "+0.00", "+0.00", "0.00", "✅ passed"],
+      ["slot-biased", "67% / 83%", "+0.00", "+0.00", "0.00", "🚩 position"]
+    ],
+    "summary": "judge: fair\nposition    flip_rate=0% first_slot_wins=50% ties=0 flagged=False\n...",
+    "worked_example": {
+      "prompt": "How do plants make food?",
+      "response_x": "Plants use photosynthesis: chlorophyll captures sunlight energy.",
+      "response_y": "Plants use sunlight energy to make sugar.",
+      "choices": [
+        ["Original", "Response X", "Response Y", "A", "Response X"],
+        ["Swapped", "Response Y", "Response X", "A", "Response Y"]
+      ]
+    }
+  }
+}
+```
+
+- `schema_version`: layout of this file (currently `1`); it changes only if the top-level fields do.
+- `juryrig_version`: the juryrig release the page installed (the pin in `app.js`).
+- `audit`: which tab produced it: `demo`, `position`, `verbosity`, `calibration` or `agreement`.
+- `sample_size`: cases audited (pairs, padded responses, labelled scores or agreement items).
+- `settings`: the thresholds and options used, as set on the tab (for example `flip_limit` and `slot_skew_limit`
+  for position; `bins` for calibration). The demo only records `mock_data: true`.
+- `results`: what the page showed, as Markdown/text and table rows: `summary` plus `metrics` (position, verbosity),
+  `changed_outcomes` (position), `changes` (verbosity), `bins` (calibration), `pairs` and `disagreement_atlas_markdown`
+  (agreement), or `judges` and `worked_example` (demo).
+
+The rows you pasted are not included, but derived results can name them: case IDs (in `changed_outcomes`, `changes` and the
+atlas) and judge names (in `pairs` and the atlas) appear as you typed them. Check before sharing a report.
+
 ## How it works
 
 - `index.html` + `app.js` + `style.css`: plain static page, no build step.
