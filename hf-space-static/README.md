@@ -116,8 +116,17 @@ q1,0.90,0.85
   `changed_outcomes` (position), `changes` (verbosity), `bins` (calibration), `pairs` and `disagreement_atlas_markdown`
   (agreement), or `judges` and `worked_example` (demo).
 
-The rows you pasted are not included, but derived results can name them: case IDs (in `changed_outcomes`, `changes` and the
-atlas) and judge names (in `pairs` and the atlas) appear as you typed them. Check before sharing a report.
+The rows you pasted are not copied in whole, but the results are worked out from them case by case, so a report
+can still reveal them:
+
+- case IDs (in `changed_outcomes`, `changes` and the atlas) and judge names (in `pairs` and the atlas) appear as
+  you typed them;
+- `changes` (verbosity) lists every case with its original and padded score and the change between them;
+- `changed_outcomes` (position) lists the original and swapped verdicts of each case whose winner changed;
+- the atlas (agreement) gives, for the cases where the panel splits most, the score variance and which judge pairs
+  disagree.
+
+Check a report as you would the data itself before sharing it.
 
 ## How it works
 
