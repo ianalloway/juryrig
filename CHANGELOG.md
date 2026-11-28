@@ -9,7 +9,7 @@ Notable changes to juryrig. Format loosely follows
 
 - Point the install guide and pinned quickstart to PyPI 0.3.2.
 - Show an example browser Space JSON report and explain its fields, including
-  which user-supplied names can appear in it (#64).
+  which user-supplied names and per-case values can appear in it (#64).
 
 ### Added
 
